@@ -50,3 +50,45 @@ It communicates with:
 ---
 
 ## 📂 Structure
+backend/
+│
+├── app/
+│   │
+│   ├── main.py
+│   │
+│   ├── api/
+│   │   ├── router.py
+│   │   └── v1/
+│   │       ├── inventory.py
+│   │       ├── auth.py
+│   │       ├── scan.py
+│   │       └── recipes.py
+│   │
+│   ├── core/
+│   │   ├── config.py
+│   │   └── security.py
+│   │
+│   ├── db/
+│   │   ├── base.py
+│   │   ├── session.py
+│   │   └── migrations/
+│   │
+│   ├── models/
+│   │   └── inventory.py
+│   │
+│   ├── schemas/
+│   │   └── inventory.py
+│   │
+│   ├── services/
+│   │   ├── vision_service.py
+│   │   ├── recipe_service.py
+│   │   └── expiry_service.py
+│   │
+│   └── dependencies/
+│       └── auth.py
+│
+├── tests/
+│
+├── requirements.txt
+├── .env.example
+└── README.md
