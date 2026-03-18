@@ -5,6 +5,7 @@ from services.inventory_service import (
     create_inventory_item,
     delete_inventory_item,
     update_inventory_item,
+    get_inventory_item_by_id
 )
 
 from schemas.inventory_schema import InventoryCreate, InventoryUpdate
@@ -27,3 +28,7 @@ def delete_inventory(item_id: int):
 def update_inventory(item_id: int, item: InventoryUpdate):
     update_data = item.model_dump(exclude_unset=True)
     return update_inventory_item(item_id, update_data)
+
+@router.get("/{item_id}")
+def read_inventory_item(item_id: int):
+    return get_inventory_item_by_id(item_id)
