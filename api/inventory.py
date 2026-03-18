@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from schemas.inventory_schema import InventoryCreate
-from services.inventory_service import get_inventory, create_inventory_item
+from services.inventory_service import get_inventory, create_inventory_item, delete_inventory_item
 
 router = APIRouter()
 
@@ -11,3 +11,7 @@ def read_inventory():
 @router.post("/")
 def add_inventory(item: InventoryCreate):
     return create_inventory_item(item.model_dump())
+
+@router.delete("/{item_id}")
+def delete_inventory(item_id: int):
+    return delete_inventory_item(item_id)

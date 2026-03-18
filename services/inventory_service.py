@@ -7,3 +7,7 @@ def get_inventory():
 def create_inventory_item(item_data: dict):
     response = supabase.table("inventory").insert(item_data).execute()
     return response.data
+
+def delete_inventory_item(item_id: int):
+    response = supabase.table("inventory").delete().eq("id", item_id).execute()
+    return response.data
