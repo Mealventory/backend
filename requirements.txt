@@ -53,13 +53,8 @@ rich==13.9.4
 SQLAlchemy==2.0.48
 starlette==0.52.1
 typing_extensions==4.15.0
-<<<<<<< HEAD
-uvicorn==0.41.0
-
-supabase
-python-dotenv
-=======
 typing-inspection==0.4.2
 urllib3==2.6.3
 uvicorn==0.41.0
->>>>>>> origin/main
+supabase
+python-dotenv==1.2.2
