@@ -10,3 +10,13 @@ class InventoryCreate(BaseModel):
     expiry_date: Optional[str] = None
     storage_location: Optional[str] = None
     status: Optional[str] = "fresh"
+
+class InventoryUpdate(BaseModel):
+    user_id: Optional[int] = None
+    food_item_id: Optional[int] = None
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+    purchase_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    storage_location: Optional[str] = None
+    status: Optional[str] = None
