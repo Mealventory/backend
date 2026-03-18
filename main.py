@@ -8,5 +8,5 @@ app = FastAPI()
 def home():
     return {"message": "Mealventory backend is running"}
 
-app.include_router(test.router)
+# app.include_router(test.router)
 app.include_router(inventory.router, prefix="/inventory")
