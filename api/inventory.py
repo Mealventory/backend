@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from schemas.inventory_schema import InventoryCreate
 from services.inventory_service import (
     get_inventory,
@@ -13,8 +13,12 @@ from schemas.inventory_schema import InventoryCreate, InventoryUpdate
 router = APIRouter()
 
 @router.get("/")
-def read_inventory():
-    return get_inventory()
+def read_inventory(days_until_expiry: int | None = Query(default=None)):
+    return get_inventory(days_until_expiry)
+
+@router.get("/{item_id}")
+def read_inventory_item(item_id: int):
+    return get_inventory_item_by_id(item_id)
 
 @router.post("/")
 def add_inventory(item: InventoryCreate):
@@ -29,6 +33,3 @@ def update_inventory(item_id: int, item: InventoryUpdate):
     update_data = item.model_dump(exclude_unset=True)
     return update_inventory_item(item_id, update_data)
 
-@router.get("/{item_id}")
-def read_inventory_item(item_id: int):
-    return get_inventory_item_by_id(item_id)
