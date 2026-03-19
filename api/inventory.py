@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 from schemas.inventory_schema import InventoryCreate
 from services.inventory_service import (
     get_inventory,
@@ -18,7 +18,12 @@ def read_inventory(days_until_expiry: int | None = Query(default=None)):
 
 @router.get("/{item_id}")
 def read_inventory_item(item_id: int):
-    return get_inventory_item_by_id(item_id)
+    item = get_inventory_item_by_id(item_id)
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    return item
 
 @router.post("/")
 def add_inventory(item: InventoryCreate):
@@ -26,10 +31,20 @@ def add_inventory(item: InventoryCreate):
 
 @router.delete("/{item_id}")
 def delete_inventory(item_id: int):
-    return delete_inventory_item(item_id)
+    deleted_item = delete_inventory_item(item_id)
+
+    if not deleted_item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    return deleted_item
 
 @router.patch("/{item_id}")
 def update_inventory(item_id: int, item: InventoryUpdate):
     update_data = item.model_dump(exclude_unset=True)
-    return update_inventory_item(item_id, update_data)
+    updated_item = update_inventory_item(item_id, update_data)
+
+    if not updated_item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    return updated_item
 
