@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import api.test as test
 import api.inventory as inventory
+from api.food_items import router as food_items_router
 
 app = FastAPI()
 
@@ -10,3 +11,4 @@ def home():
 
 # app.include_router(test.router)
 app.include_router(inventory.router, prefix="/inventory")
+app.include_router(food_items_router, prefix="/food-items", tags=["Food Items"])
