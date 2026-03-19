@@ -2,7 +2,9 @@ from core.supabase_client import supabase
 from datetime import date, timedelta
 
 def get_inventory(days_until_expiry: int | None = None):
-    query = supabase.table("inventory").select("*")
+    query = supabase.table("inventory").select(
+        "*, food_items(id, name, category, default_unit, barcode, typical_shelf_life_days)"
+    )
 
     if days_until_expiry is not None:
         today = date.today()
@@ -18,7 +20,12 @@ def get_inventory(days_until_expiry: int | None = None):
     return response.data
 
 def get_inventory_item_by_id(item_id: int):
-    response = supabase.table("inventory").select("*").eq("id", item_id).execute()
+    response = (
+        supabase.table("inventory")
+        .select("*, food_items(id, name, category, default_unit, barcode, typical_shelf_life_days)")
+        .eq("id", item_id)
+        .execute()
+    )
     return response.data
 
 def create_inventory_item(item_data: dict):
