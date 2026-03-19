@@ -10,7 +10,6 @@ class InventoryCreate(BaseModel):
     purchase_date: Optional[date] = None
     expiry_date: Optional[date] = None
     storage_location: Optional[str] = None
-    status: Optional[str] = "fresh"
 
 class InventoryUpdate(BaseModel):
     user_id: Optional[int] = None
@@ -20,4 +19,3 @@ class InventoryUpdate(BaseModel):
     purchase_date: Optional[date] = None
     expiry_date: Optional[date] = None
     storage_location: Optional[str] = None
-    status: Optional[str] = None
