@@ -27,7 +27,7 @@ def read_inventory_item(item_id: int):
 
 @router.post("/")
 def add_inventory(item: InventoryCreate):
-    return create_inventory_item(item.model_dump())
+    return create_inventory_item(item.model_dump(mode="json"))
 
 @router.delete("/{item_id}")
 def delete_inventory(item_id: int):
@@ -40,7 +40,7 @@ def delete_inventory(item_id: int):
 
 @router.patch("/{item_id}")
 def update_inventory(item_id: int, item: InventoryUpdate):
-    update_data = item.model_dump(exclude_unset=True)
+    update_data = item.model_dump(mode="json", exclude_unset=True)
     updated_item = update_inventory_item(item_id, update_data)
 
     if not updated_item:
