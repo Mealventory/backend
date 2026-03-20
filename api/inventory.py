@@ -9,15 +9,16 @@ from services.inventory_service import (
     food_item_exists
 )
 
-from schemas.inventory_schema import InventoryCreate, InventoryUpdate
+from schemas.inventory_schema import InventoryCreate, InventoryUpdate, InventoryResponse
+from typing import List
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/", response_model=List[InventoryResponse])
 def read_inventory(days_until_expiry: int | None = Query(default=None)):
     return get_inventory(days_until_expiry)
 
-@router.get("/{item_id}")
+@router.get("/{item_id}", response_model=InventoryResponse)
 def read_inventory_item(item_id: int):
     item = get_inventory_item_by_id(item_id)
 
@@ -26,7 +27,7 @@ def read_inventory_item(item_id: int):
 
     return item
 
-@router.post("/")
+@router.post("/", response_model=List[InventoryResponse])
 def add_inventory(item: InventoryCreate):
     if not user_exists(item.user_id):
         raise HTTPException(status_code=404, detail="User not found")
@@ -36,7 +37,7 @@ def add_inventory(item: InventoryCreate):
 
     return create_inventory_item(item.model_dump(mode="json"))
 
-@router.delete("/{item_id}")
+@router.delete("/{item_id}", response_model=List[InventoryResponse])
 def delete_inventory(item_id: int):
     deleted_item = delete_inventory_item(item_id)
 
@@ -45,7 +46,7 @@ def delete_inventory(item_id: int):
 
     return deleted_item
 
-@router.patch("/{item_id}")
+@router.patch("/{item_id}", response_model=List[InventoryResponse])
 def update_inventory(item_id: int, item: InventoryUpdate):
     update_data = item.model_dump(mode="json", exclude_unset=True)
 
