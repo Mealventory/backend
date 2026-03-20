@@ -10,11 +10,18 @@ def food_item_exists(food_item_id: int) -> bool:
     response = supabase.table("food_items").select("id").eq("id", food_item_id).execute()
     return len(response.data) > 0
 
-def get_inventory(days_until_expiry: int | None = None):
+def get_inventory(
+    days_until_expiry: int | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "asc",
+):
     query = supabase.table("inventory").select(
         "*, food_items(id, name, category, default_unit, barcode, typical_shelf_life_days)"
     )
 
+    # Filter by expiry window
     if days_until_expiry is not None:
         today = date.today()
         future_date = today + timedelta(days=days_until_expiry)
@@ -24,6 +31,19 @@ def get_inventory(days_until_expiry: int | None = None):
             .gte("expiry_date", today.isoformat())
             .lte("expiry_date", future_date.isoformat())
         )
+
+    # Sorting
+    allowed_sort_fields = {"id", "purchase_date", "expiry_date", "created_at", "quantity", "status"}
+
+    if sort_by in allowed_sort_fields:
+        ascending = sort_order.lower() == "asc"
+        query = query.order(sort_by, desc=not ascending)
+
+    # Pagination (we’ll wire this properly next step, but safe to include now)
+    if limit is not None:
+        if offset is None:
+            offset = 0
+        query = query.range(offset, offset + limit - 1)
 
     response = query.execute()
     return response.data
