@@ -2,6 +2,13 @@ from core.supabase_client import supabase
 from datetime import date, timedelta
 from services.status_service import calculate_inventory_status
 
+def user_exists(user_id: int) -> bool:
+    response = supabase.table("users").select("id").eq("id", user_id).execute()
+    return len(response.data) > 0
+
+def food_item_exists(food_item_id: int) -> bool:
+    response = supabase.table("food_items").select("id").eq("id", food_item_id).execute()
+    return len(response.data) > 0
 
 def get_inventory(days_until_expiry: int | None = None):
     query = supabase.table("inventory").select(
