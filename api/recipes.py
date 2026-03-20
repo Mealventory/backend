@@ -1,5 +1,5 @@
 from typing import List
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from schemas.recipe_schema import RecipeCreate, RecipeUpdate, RecipeResponse
 from services.recipe_service import (
     get_recipes,
@@ -17,8 +17,8 @@ def read_recipes():
     return get_recipes()
 
 @router.get("/{recipe_id}/availability")
-def read_recipe_availability(recipe_id: int):
-    availability = get_recipe_availability(recipe_id)
+def read_recipe_availability(recipe_id: int, user_id: int = Query(...)):
+    availability = get_recipe_availability(recipe_id, user_id)
 
     if not availability:
         raise HTTPException(status_code=404, detail="Recipe not found")
