@@ -45,7 +45,7 @@ def delete_recipe(recipe_id: int):
     response = supabase.table("recipes").delete().eq("id", recipe_id).execute()
     return response.data
 
-def get_recipe_availability(recipe_id: int):
+def get_recipe_availability(recipe_id: int, user_id: int):
     recipe_response = (
         supabase.table("recipes")
         .select("""
@@ -69,6 +69,7 @@ def get_recipe_availability(recipe_id: int):
     inventory_response = (
         supabase.table("inventory")
         .select("food_item_id, quantity, unit")
+        .eq("user_id", user_id)
         .execute()
     )
 
@@ -77,7 +78,9 @@ def get_recipe_availability(recipe_id: int):
     inventory_map = {}
     for item in inventory_items:
         food_item_id = item["food_item_id"]
-        inventory_map[food_item_id] = inventory_map.get(food_item_id, 0) + item["quantity"]
+        unit = item.get("unit")
+        key = (food_item_id, unit)
+        inventory_map[key] = inventory_map.get(key, 0) + item["quantity"]
 
     available_ingredients = []
     missing_ingredients = []
@@ -85,7 +88,8 @@ def get_recipe_availability(recipe_id: int):
     for ingredient in recipe.get("recipe_ingredients", []):
         food_item_id = ingredient["food_item_id"]
         required_quantity = ingredient["quantity"]
-        available_quantity = inventory_map.get(food_item_id, 0)
+        required_unit = ingredient.get("unit")
+        available_quantity = inventory_map.get((food_item_id, required_unit), 0)
 
         ingredient_result = {
             "food_item_id": food_item_id,
