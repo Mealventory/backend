@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from core.supabase_client import supabase
+from core.auth import get_current_user
 
 router = APIRouter()
 
@@ -10,3 +11,12 @@ def health_check():
         return {"status": "ok", "database": "connected"}
     except Exception:
         return {"status": "error", "database": "disconnected"}
+    
+@router.get("/protected")
+def protected_health_check(current_user=Depends(get_current_user)):
+    return {
+        "status": "ok",
+        "authenticated": True,
+        "user_id": current_user.id,
+        "email": current_user.email,
+    }
