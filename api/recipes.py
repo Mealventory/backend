@@ -7,6 +7,7 @@ from services.recipe_service import (
     create_recipe,
     update_recipe,
     delete_recipe,
+    get_recipe_availability,
 )
 
 router = APIRouter()
@@ -14,6 +15,15 @@ router = APIRouter()
 @router.get("/", response_model=List[RecipeResponse])
 def read_recipes():
     return get_recipes()
+
+@router.get("/{recipe_id}/availability")
+def read_recipe_availability(recipe_id: int):
+    availability = get_recipe_availability(recipe_id)
+
+    if not availability:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    return availability
 
 @router.get("/{recipe_id}", response_model=RecipeResponse)
 def read_recipe(recipe_id: int):
