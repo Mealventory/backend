@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import date, datetime
 
 class InventoryCreate(BaseModel):
-    user_id: int
     food_item_id: int
     quantity: float
     unit: Optional[str] = None
@@ -12,7 +11,6 @@ class InventoryCreate(BaseModel):
     storage_location: Optional[str] = None
 
 class InventoryUpdate(BaseModel):
-    user_id: Optional[int] = None
     food_item_id: Optional[int] = None
     quantity: Optional[float] = None
     unit: Optional[str] = None
@@ -30,6 +28,7 @@ class FoodItemResponse(BaseModel):
 
 class InventoryResponse(BaseModel):
     id: int
+    auth_user_id: Optional[str] = None
     user_id: int
     food_item_id: int
     quantity: float

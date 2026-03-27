@@ -11,6 +11,7 @@ def food_item_exists(food_item_id: int) -> bool:
     return len(response.data) > 0
 
 def get_inventory(
+    auth_user_id: str | None = None,
     days_until_expiry: int | None = None,
     limit: int | None = None,
     offset: int | None = None,
@@ -20,6 +21,9 @@ def get_inventory(
     query = supabase.table("inventory").select(
         "*, food_items(id, name, category, default_unit, barcode, typical_shelf_life_days)"
     )
+
+    if auth_user_id is not None:
+        query = query.eq("auth_user_id", auth_user_id)
 
     # Filter by expiry window
     if days_until_expiry is not None:
@@ -48,13 +52,17 @@ def get_inventory(
     response = query.execute()
     return response.data
 
-def get_inventory_item_by_id(item_id: int):
-    response = (
+def get_inventory_item_by_id(item_id: int, auth_user_id: str | None = None):
+    query = (
         supabase.table("inventory")
         .select("*, food_items(id, name, category, default_unit, barcode, typical_shelf_life_days)")
         .eq("id", item_id)
-        .execute()
     )
+
+    if auth_user_id is not None:
+        query = query.eq("auth_user_id", auth_user_id)
+
+    response = query.execute()
     return response.data
 
 def create_inventory_item(item_data: dict):
@@ -62,13 +70,23 @@ def create_inventory_item(item_data: dict):
     response = supabase.table("inventory").insert(item_data).execute()
     return response.data
 
-def delete_inventory_item(item_id: int):
-    response = supabase.table("inventory").delete().eq("id", item_id).execute()
+def delete_inventory_item(item_id: int, auth_user_id: str | None = None):
+    query = supabase.table("inventory").delete().eq("id", item_id)
+
+    if auth_user_id is not None:
+        query = query.eq("auth_user_id", auth_user_id)
+
+    response = query.execute()
     return response.data
 
-def update_inventory_item(item_id: int, item_data: dict):
+def update_inventory_item(item_id: int, item_data: dict, auth_user_id: str | None = None):
     if "expiry_date" in item_data:
         item_data["status"] = calculate_inventory_status(item_data.get("expiry_date"))
 
-    response = supabase.table("inventory").update(item_data).eq("id", item_id).execute()
+    query = supabase.table("inventory").update(item_data).eq("id", item_id)
+
+    if auth_user_id is not None:
+        query = query.eq("auth_user_id", auth_user_id)
+
+    response = query.execute()
     return response.data
