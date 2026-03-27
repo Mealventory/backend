@@ -7,8 +7,11 @@ from api.health import router as health_router
 from api.recipes import router as recipes_router
 from api.recipe_ingredients import router as recipe_ingredients_router
 from core.logging_middleware import log_requests
+from fastapi.security import HTTPBearer
 
 app = FastAPI()
+
+security = HTTPBearer()
 
 @app.get("/")
 def home():
