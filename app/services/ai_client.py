@@ -2,11 +2,12 @@ import httpx
 from app.core.config import settings
 
 
-async def detect_food(image_bytes: bytes) -> dict:
-    """POST an image to the ai-service /detect-food endpoint."""
+async def detect_food(image_bytes: bytes, mode: str = "food") -> dict:
+    """POST an image and mode to the ai-service /scan endpoint."""
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{settings.AI_SERVICE_URL}/detect-food",
+            f"{settings.AI_SERVICE_URL}/scan/",
+            data={"mode": mode},
             files={"file": ("image.jpg", image_bytes, "image/jpeg")},
             timeout=30.0,
         )
