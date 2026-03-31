@@ -15,6 +15,9 @@ env/
 # VS Code
 .vscode/
 
+# Visual Studio
+.vs/
+
 # OS files
 .DS_Store
 Thumbs.db
