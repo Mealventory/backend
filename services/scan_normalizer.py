@@ -80,7 +80,17 @@ def normalize_scan_result(raw_data):
                 "confidence": item.get("confidence", 0.9)
             })
 
+            # Fallback if nothing could be parsed
+    if not items:
+        return {
+            "items": [],
+            "fallback_required": True,
+            "message": "OCR/classification failed. Please enter items manually."
+        }
+
     return {"items": items}
+
+
 
 
 def normalize_unit(unit):

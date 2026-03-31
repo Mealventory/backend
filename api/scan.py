@@ -5,4 +5,5 @@ router = APIRouter()
 
 @router.post("/scan/normalize")
 def normalize_scan(data: dict):
-    return normalize_scan_result(data)
+    result = normalize_scan_result(data)
+    return result
