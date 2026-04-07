@@ -9,6 +9,8 @@ from api.recipes import router as recipes_router
 from api.recipe_ingredients import router as recipe_ingredients_router
 from core.logging_middleware import log_requests
 from fastapi.security import HTTPBearer
+from utils.recipe_helpers import split_inventory_for_recipe_generation
+from api import recipes_ai
 
 app = FastAPI()
 
@@ -25,6 +27,7 @@ app.include_router(scan_router, prefix="/scan", tags=["Scan"])
 app.include_router(health_router, prefix="/health", tags=["Health"])
 app.include_router(recipes_router, prefix="/recipes", tags=["Recipes"])
 app.include_router(recipe_ingredients_router, prefix="/recipes", tags=["Recipe Ingredients"])
+app.include_router(recipes_ai.router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
