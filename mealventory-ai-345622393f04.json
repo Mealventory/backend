@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "mealventory-ai",
+  "private_key_id": "345622393f042b032057b6fe76e65090bf9f0ded",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCmADGxViI5l4Z2\nth3UcZerSWf5fwB2j73fUvMS+45+CMWfOtshK6UkUt+KrNKU5kIu+MeP1I2CmSsL\ngHhgij5RzDmjwiXt46IzvBM/8FBTPPhuAufSqOMao71d8FjM3yZ/fo3hqwNeA5GK\nO8G/V7n4AArI7vH0he2nY6ol1GMf9XqRFhoxNPdQZSFjCv0b+69vtMi1fZuc7628\nKU4vjuHwvsI0BUyN7ex35LNmFfZxoVLkZM0k87/PzG4TzGQ02UbJPcgtKqrMhnEq\nFV+IIFg2Jsv2VzsaD5Pfll5+f+IlDslPES0Y11VtmRYlcj+ikPX8f4bSR4vRMopZ\nHOxKw4XnAgMBAAECggEANLq0DjonhfbBUh0YTZ7FiDW5jtGOQpr3O6ScLMf2Y8eC\nislFyPwVqXufoWuzOnQHyubgcSoZx0XDHBSzaCsRj6cZGhD2PmID6H4R+UnrIf2o\nhj1rCQn3lcM0SE4rzuwFTRNUmz3YxHjKtsezjAWgP4w34Mqx1bPjITwx1HFqCUDL\n64u0xdHX/9tKOOiECHOerN2G6O3QPOYE7m9w+Hql0+LrjW8fZBD8WgA5SuzL4ofd\nP1QvaxwZvAERhRx1WipA0nP50Wu1MlC9qZI4ceD0aDJj3T0yKEWRzVb0G4XEGA88\ns3ucQ/KSu6BPTDjyJaNH4HEF/AVhohTFvaytrliVRQKBgQDca4Zr9BtbzgXWHsHn\nmSonVg9Auez0co2U5Q9h7jvhbIf0Gb55nA9PS60mU2C9CgbGONom/7QdySLNqoO5\nSbu/CxgAYKxSuakMxFBwXVXQFG6AxO05dLfoue/yKRPqpCY7aHznR3BklOLTz9Ti\n2kXuwZumTLN3uNCYLXq1r2skYwKBgQDAy+MwH3fYIGbhaKPAyfHHpZs6kLXuKvbS\nvvT9K9CRAoXyBmVV+6XCGH26eRnFCXuf2G2AUkZqtIM6VCtpp6ab4h6rVOuDJRWH\no0zsm6tyW37NiYLz70otbSARtWwrFKznHxNU/gAbsbXcQoncRitq8LngWV1u76rQ\n60haK6IFrQKBgBB3d/NYqTKSkZ0Nby7+IkgOBdWwDiO06x7UffGy+oY8tWtnAPPU\n1M/3t1fFotR8i0UDukhvkeUnwZHbyztsZro++ewNTNJhTF/HyrqaPm7tF9RG4fII\n5jRcr7BHoVVGLhUCGVKt45egB9ILFLxd0hukGxyxXjbzd6Hmw+QO1tJBAoGAAK02\ngOa7XvDOK6BYYsbSqGa2YsA7Qzi3YQn2hiTvOHMP0Uegd2rIrCO13T+rjXt5CZiS\n2c5wHNPBWiUNefNyrD1g6i0EHpO0vaMfE/1/3ojfqwz+fqiqU/p8EFPYq1YJPU5o\nnPW/PlmjT8CUB0ffwyJRJK5rm4YPzWfl+xsIGIkCgYEAvnzq+wd/lqobsp3v70+2\ngXvhXigiXqCgWUL1PGYFEx8p0VQUygh0O5Nh9+PxpWhMx+4h9pyx1L+sj/K0m7ON\nNbjmHsQtx25JA/V+6yjt5CpvksS825L0stTr8Fevf/OydiPcKRYSLWjGUVRsWoQh\n5qvX3zzAzTdim/IM6q1x498=\n-----END PRIVATE KEY-----\n",
+  "client_email": "mealventory-ai-service@mealventory-ai.iam.gserviceaccount.com",
+  "client_id": "100634486702209748068",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/mealventory-ai-service%40mealventory-ai.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
