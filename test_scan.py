@@ -216,10 +216,24 @@ def _run_custom_test(sample_name: str):
     user_id = "test-user"
     freezer_counts: dict[str, int] = {}
     manual_items: list[dict[str, int | str]] = []
+
+    print("\n📝 Optional manual item details for this upload:")
+    item_name = input("Enter item name (blank to skip): ").strip()
+    quantity = 1
+    if item_name:
+        quantity_raw = input("Enter quantity [1]: ").strip()
+        try:
+            quantity = max(1, int(quantity_raw)) if quantity_raw else 1
+        except ValueError:
+            quantity = 1
+
+        manual_items.append({"name": item_name, "quantity": quantity, "freezer_count": 0})
+
     if persist:
         user_id = input("Enter user ID [test-user]: ").strip() or "test-user"
         if mode == "tag":
-            manual_items = get_tag_manual_items_from_preview(sample_name)
+            # Keep the manually entered name/quantity and add extra tag details if provided.
+            manual_items.extend(get_tag_manual_items_from_preview(sample_name))
         else:
             freezer_counts = get_freezer_counts_from_preview(sample_name, mode=mode)
     test_sample(
