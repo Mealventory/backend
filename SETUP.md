@@ -28,6 +28,8 @@ PowerShell:
 
 .\.venv\Scripts\Activate.ps1
 
+If you are editing backend Python files in VS Code, point the Python interpreter at `backend\.venv\Scripts\python.exe` so import resolution uses the backend environment.
+
 CMD:
 
 .\.venv\Scripts\activate.bat
