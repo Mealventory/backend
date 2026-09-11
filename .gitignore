@@ -23,3 +23,5 @@ env/
 Thumbs.db
 
 credentials/
+*.db
+*.sqlite3
