@@ -51,21 +51,21 @@ dir backend\samples\
 
 ### Terminal 1 - AI Service (MUST START FIRST)
 ```bash
-cd c:\Users\pablo\Documents\Capstone\ai-services
+cd \ai-services
 python main.py
 ```
-✓ Should show: `Uvicorn running on http://127.0.0.1:8001`
+✓ Should show: `Uvicorn running on http://0.0.0.0:8001`
 
 ### Terminal 2 - Backend
 ```bash
-cd c:\Users\pablo\Documents\Capstone\backend
-python -m uvicorn app.main:app --reload --port 8000
+cd \backend
+python -m app.main (or python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload)
 ```
-✓ Should show: `Uvicorn running on http://127.0.0.1:8000`
+✓ Should show: `Uvicorn running on http://0.0.0.0:8000`
 
 ### Terminal 3 - Ready for testing
 ```bash
-cd c:\Users\pablo\Documents\Capstone\backend
+cd \backend
 ```
 
 ---
