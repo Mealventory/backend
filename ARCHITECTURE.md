@@ -163,7 +163,7 @@ User "test-user" now has:
 - [ ] Copy images to `backend/samples/`
 - [ ] Verify `.env` has correct settings
 - [ ] Start AI service: `cd ai-services && python main.py`
-- [ ] Start backend: `cd backend && python -m uvicorn app.main:app --reload`
+- [ ] Start backend: `cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
 - [ ] Run test: `cd backend && python test_scan.py`
 - [ ] Select option 1 (receipt without DB persistence)
 - [ ] Verify AI returns detected items

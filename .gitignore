@@ -21,3 +21,7 @@ env/
 # OS files
 .DS_Store
 Thumbs.db
+
+credentials/
+*.db
+*.sqlite3
