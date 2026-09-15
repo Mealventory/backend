@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.core.security import verify_firebase_token
+from app.services import auth_service
 from app.dependencies.auth import bearer_scheme, get_current_user
 from app.dependencies.database import get_db
 from app.models.user import User
@@ -17,19 +17,7 @@ def register_user(
     db: Session = Depends(get_db),
 ):
     """Sync a Firebase-authenticated user into the database."""
-    token_data = verify_firebase_token(credentials.credentials)
-    uid = token_data["uid"]
-    email = token_data.get("email", "")
-
-    existing = db.query(User).filter(User.id == uid).first()
-    if existing:
-        return existing
-
-    user = User(id=uid, email=email)
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+    return auth_service.register_user(credentials.credentials, db)
 
 
 @router.get("/me", response_model=UserOut)

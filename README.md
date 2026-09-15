@@ -1,124 +1,57 @@
-# Mealventory Core Backend: Target Final State & Purpose
+# Mealventory Backend
 
-## 1. Purpose of the Repository
-The `backend` repository is the centralized application engine and data layer for **Mealventory**. Built with **FastAPI (Python 3.11+)**, **Pydantic v2**, and **PostgreSQL (with Supabase RLS)**, it enforces multi-tenant household boundary isolation, orchestrates the inventory lifecycle, powers the smart recipe matching algorithm, interfaces with the AI microservice, and dispatches proactive expiration alerts.
+The backend has one FastAPI application: `app.main:app`. `main:app` imports
+that same application, so either launch command exposes the same v1 API.
 
-### Key Functional Responsibilities:
-- **Tenant Isolation & Security**: Provide strict multi-tenant boundary enforcement where all inventory, storage locations, and recipes belong to a `household`, verified at the database layer via PostgreSQL Row Level Security (RLS) and at the application layer via JWT authentication.
-- **Inventory Lifecycle & Audit**: Manage CRUD operations, batch ingestions from OCR/vision, shelf-life calculation overrides, status transitions (`active` -> `consumed` | `discarded`), and consumption velocity tracking.
-- **Smart Recipe Recommendation Engine**: Compute inventory-to-recipe ingredient matching scores in sub-50ms, applying dynamic boost multipliers for items expiring within 48 hours.
-- **Automated Expiration Alert System**: Run scheduled background jobs to evaluate items approaching expiration and broadcast grouped alerts via Expo Push Notification services.
-- **AI Service Gateway & Circuit Breaker**: Relay images and scan requests to `ai-services` asynchronously, handling timeouts, fallbacks, and payload normalization.
+## Run locally
 
----
-
-## 2. Target Architecture & Final Structure
-
-### Architectural Pattern
-Adheres to **Clean Architecture / Hexagonal Architecture** principles, maintaining strict separation of concerns across presentation, domain, and data access layers:
-
-```
-backend/
-├── app/
-│   ├── api/                          # FastAPI Route Controllers (Grouped by domain)
-│   │   ├── v1/
-│   │   │   ├── auth.py               # Supabase Auth sync & user profile endpoints
-│   │   │   ├── households.py         # Household CRUD, invite codes, member management
-│   │   │   ├── inventory.py          # Inventory CRUD, batch add, mark consumed/discarded
-│   │   │   ├── scan.py               # Proxy to AI services with circuit breaker
-│   │   │   ├── recipes.py            # Recipe suggestions, matching algorithms, "cook meal"
-│   │   │   ├── shopping.py           # Shopping list management & "move to pantry"
-│   │   │   ├── notifications.py      # Device push token registration & preferences
-│   │   │   └── health.py             # Liveness & readiness probes
-│   │   └── router.py                 # Unified API v1 router
-│   │
-│   ├── core/                         # Cross-cutting infrastructure concerns
-│   │   ├── config.py                 # Pydantic Settings (Twelve-Factor environment config)
-│   │   ├── security.py               # JWT verification & Supabase Auth token decoding
-│   │   ├── dependencies.py           # FastAPI DI (get_db, get_current_user, get_household)
-│   │   ├── exceptions.py             # Global exception handlers & RFC 7807 problem details
-│   │   └── logging.py                # Structured JSON request logging & correlation IDs
-│   │
-│   ├── db/                           # Persistence Layer
-│   │   ├── session.py                # Async SQLAlchemy / asyncpg connection pool engine
-│   │   ├── base.py                   # Declarative Base
-│   │   └── migrations/               # Alembic database migration scripts
-│   │
-│   ├── models/                       # SQLAlchemy ORM Models
-│   │   ├── household.py              # Household & HouseholdMember models
-│   │   ├── food.py                   # Global Food reference catalog
-│   │   ├── inventory.py              # InventoryItem & StorageLocation models
-│   │   ├── recipe.py                 # Recipe & RecipeIngredient models
-│   │   └── shopping.py               # ShoppingListItem model
-│   │
-│   ├── schemas/                      # Pydantic v2 Validation & Serialization Schemas
-│   │   ├── household.py              # HouseholdCreate, HouseholdMemberResponse
-│   │   ├── inventory.py              # InventoryCreate, InventoryBatch, InventoryResponse
-│   │   ├── recipe.py                 # RecipeSuggestionResponse, RecipeCookRequest
-│   │   └── scan.py                   # ScanRequest, ScanReviewResponse
-│   │
-│   └── services/                     # Business Logic Services
-│       ├── ai_client.py              # Async HTTPX client to AI microservice
-│       ├── recipe_engine.py          # Ingredient matching & expiry weighting algorithm
-│       ├── notification_service.py   # Expo push notification dispatcher
-│       └── expiry_scheduler.py       # Daily morning cron for expiring items
-│
-├── tests/                            # Pytest Test Suite
-│   ├── unit/                         # Schema, recipe engine, and service tests
-│   ├── integration/                  # API endpoint tests with test database & mocked JWT
-│   └── conftest.py                   # Fixtures & mock client providers
-│
-├── Dockerfile                        # Multi-stage hardened production Dockerfile
-└── requirements.txt                  # Locked Python 3.11 dependencies
-```
-
----
-
-## 3. Database Isolation Strategy (Supabase RLS)
-- All multi-tenant queries are guarded by a PostgreSQL `SECURITY DEFINER` helper function: `is_household_member(user_id, household_id)`.
-- This eliminates infinite recursion in PostgreSQL policy checks while guaranteeing that no query can access or mutate inventory items outside the caller's household.
-- Every API endpoint extracts the user's Supabase JWT, resolves their active household context via `X-Household-ID`, and validates membership before executing database queries.
-
----
-
-## 4. API Endpoints Contract (Target Final State)
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| `GET` | `/api/v1/health` | Service liveness & database readiness check | Public |
-| `POST` | `/api/v1/households` | Create new household (creator becomes `owner`) | Bearer JWT |
-| `POST` | `/api/v1/households/join` | Join household using 6-character alphanumeric code | Bearer JWT |
-| `GET` | `/api/v1/households/me` | Get active household details and member list | Bearer JWT |
-| `GET` | `/api/v1/inventory` | List active inventory with search & zone filters | Bearer JWT + Household |
-| `POST` | `/api/v1/inventory/batch` | Bulk insert items confirmed from camera/OCR scan | Bearer JWT + Household |
-| `PATCH` | `/api/v1/inventory/{id}` | Update quantity, storage zone, or expiry date | Bearer JWT + Household |
-| `POST` | `/api/v1/inventory/{id}/consume` | Mark item as consumed and prompt shopping restock | Bearer JWT + Household |
-| `POST` | `/api/v1/scan` | Relay image to AI microservice for OCR/vision parsing | Bearer JWT + Household |
-| `GET` | `/api/v1/recipes/suggested` | Return recipes ranked by in-stock ingredients & expiry | Bearer JWT + Household |
-| `POST` | `/api/v1/recipes/{id}/cook` | Deduct required recipe ingredients from active inventory | Bearer JWT + Household |
-| `POST` | `/api/v1/notifications/token` | Register Expo Push Token for mobile device | Bearer JWT |
-
-
-## Running the current implementation
-
-The architecture and endpoint table above describe the target state. The current
-repository has two entry points: `app.main:app` (Firebase and SQLAlchemy,
-`/api/v1` routes) and `main:app` (Supabase routes).
-
-Copy `.env.example` to `.env`, configure the relevant services, and install
-`requirements.txt` into a virtual environment. Start either API with:
+Use Python 3.11.9 and configure `.env` with `DATABASE_URL` and `AI_SERVICE_URL`.
+Firebase credentials are required for authenticated requests. `OPENROUTER_API_KEY`
+and `OPENROUTER_MODEL` configure the recipe fallback. Existing Supabase API keys
+may remain in `.env`, but the retired prototype client is no longer loaded.
 
 ```sh
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-# Or the Supabase API:
-python -m uvicorn main:app --host 127.0.0.1 --port 8000
+python -m pip install -r requirements-dev.txt
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The Supabase API retains `POST /scan/scan/normalize` for existing clients and
-adds image OCR at `POST /scan/`. OCR alone requires the optional
-`google-cloud-vision` package and Google Application Default Credentials
-(or `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service account file).
-The Firebase API needs Firebase credentials for authenticated requests.
-Database operations and AI requests require their configured external services.
-The added Alembic directory is a scaffold with no schema migrations yet;
-existing databases must match the ORM before using the new food fields.
+Swagger UI: http://127.0.0.1:8000/docs
+OpenAPI: http://127.0.0.1:8000/openapi.json
+A checked-in copy is in [docs/openapi.json](docs/openapi.json).
+
+## Current API
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/` | Liveness (not database readiness) |
+| POST | `/api/v1/users/register` | Sync Firebase user |
+| GET | `/api/v1/users/me` | Current user |
+| GET, POST | `/api/v1/inventory/` | List or add inventory |
+| DELETE | `/api/v1/inventory/{item_id}` | Delete owned item |
+| POST | `/api/v1/scan/` | Scan and add inventory |
+| POST | `/api/v1/scan/sample` | Optional development sample scan |
+| GET | `/api/v1/recipes/` | Suggest recipes from inventory |
+| POST | `/api/v1/food/predict-expiry/{food_id}` | Predict expiry |
+
+The sample helper requires `ENABLE_SAMPLE_SCAN=true`. Keep it disabled in
+production. It retains its existing development-only user-ID persistence option.
+The food predictor retains its existing response; its date attributes are not
+mapped database columns, so it must not be treated as durable date persistence.
+
+## Structure and tests
+
+`app/api/v1/` contains HTTP adapters; `app/services/` contains auth, inventory,
+scan orchestration, AI transport, expiry and recipe logic. Database sessions use
+one dependency in `app/dependencies/database.py`.
+
+```sh
+python -m pytest tests/
+```
+
+Tests use in-memory SQLite and mocked authentication/AI, never the configured
+live database or paid AI APIs. They cover current v1 routes, retired route 404s,
+and compare OpenAPI schemas and operation IDs against the pre-cleanup contract.
+
+See [the retirement audit](docs/legacy-retirement.md) for migration notes.
+Households, analytics, Supabase JWT migration and RLS remain future features;
+[the target architecture](docs/target-architecture.md) is not the current contract.
