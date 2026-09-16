@@ -27,8 +27,11 @@ def test_retired_endpoints_are_not_registered(client, path, method):
 def test_openapi_preserves_v1_contract(client):
     baseline = json.loads((Path(__file__).parent/'contracts/v1-openapi.json').read_text())
     current = client.get('/openapi.json').json()
-    assert current['components'] == baseline['components']
-    assert current['paths'].keys() == baseline['paths'].keys()
+    # Additive household APIs may extend the schema without changing existing contracts.
+    for section, definitions in baseline['components'].items():
+        for name, definition in definitions.items():
+            assert current['components'][section][name] == definition
+    assert baseline['paths'].keys() <= current['paths'].keys()
     for path, methods in baseline['paths'].items():
         for verb, operation in methods.items():
             actual = current['paths'][path][verb]
