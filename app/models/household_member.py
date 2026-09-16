@@ -1,4 +1,4 @@
-"""Read mapping for the membership table introduced by init_db.sql.
+"""Membership mapping for the membership table introduced by init_db.sql.
 
 Presence is active membership: the schema has no separate active/status column.
 No runtime table creation or migration is performed here.
