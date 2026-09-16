@@ -75,3 +75,19 @@ If you want to store in DB, set persist_to_db=true and provide user_id:
 curl -X POST http://127.0.0.1:8000/api/v1/scan/sample \
 	-H "Content-Type: application/json" \
 	-d "{\"sample_name\":\"receipt_(1).jpg\",\"mode\":\"receipt\",\"persist_to_db\":true,\"user_id\":\"your-user-id\"}"
+
+# Tunnel (instead of laptop IP)
+## Starting tunnel to use for app. Can be used on multiple devices but needs to be started.
+With the **backend running** on port 8000, open a separate terminal and run:
+
+
+cloudflared tunnel --url http://localhost:8000
+
+
+Keep that terminal open. Copy the HTTPS URL it prints into the frontend’s .env.local:
+
+
+EXPO_PUBLIC_BACKEND_URL=https://NEW-ADDRESS.trycloudflare.com
+
+## If Windows says cloudflared isn’t recognized, install it:
+winget install --id Cloudflare.cloudflared --exact
