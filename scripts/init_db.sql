@@ -8,7 +8,7 @@ CREATE TYPE public.member_role AS ENUM ('owner', 'admin', 'member');
 CREATE TYPE public.storage_zone AS ENUM ('pantry', 'fridge', 'freezer', 'spicerack');
 CREATE TYPE public.item_status AS ENUM ('active', 'consumed', 'discarded');
 
-CREATE FUNCTION public.update_updated_at_column()
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog

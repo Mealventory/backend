@@ -30,6 +30,7 @@ def verify_supabase_token(token: str) -> dict:
         claims = jwt.decode(
             token, key, algorithms=[algorithm], issuer=issuer, audience="authenticated",
             options={"require": ["exp", "iat", "sub", "iss", "aud", "role"]},
+            leeway=10,
         )
         if claims["role"] != "authenticated":
             raise jwt.InvalidTokenError("Not a user access token")
