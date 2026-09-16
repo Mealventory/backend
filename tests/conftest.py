@@ -1,7 +1,7 @@
 """Offline API fixtures: no production database, tokens, or paid AI requests."""
 import os
 os.environ.update(DATABASE_URL='sqlite://', AI_SERVICE_URL='http://127.0.0.1:8001',
-                  FIREBASE_PROJECT_ID='mealventory-test')
+                  SUPABASE_URL='https://test.supabase.co', SUPABASE_JWT_SECRET='test-secret-with-at-least-32-bytes', SUPABASE_JWT_ALGORITHM='HS256')
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -13,7 +13,9 @@ from app.models.user import User
 from app.models.food import Food
 from app.models.inventory import InventoryItem
 from app.dependencies.database import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, get_current_household
+from app.models.household_member import HouseholdMember
+from uuid import UUID
 
 
 @pytest.fixture
@@ -31,11 +33,11 @@ def db():
 
 @pytest.fixture
 def client(db, monkeypatch):
-    monkeypatch.setattr('app.main.get_firebase_app', lambda: None)
     def database():
         yield db
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[get_current_user] = lambda: db.get(User, 'alice')
+    app.dependency_overrides[get_current_household] = lambda: UUID('00000000-0000-0000-0000-000000000001')
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()

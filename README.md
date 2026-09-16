@@ -6,9 +6,10 @@ that same application, so either launch command exposes the same v1 API.
 ## Run locally
 
 Use Python 3.11.9 and configure `.env` with `DATABASE_URL` and `AI_SERVICE_URL`.
-Firebase credentials are required for authenticated requests. `OPENROUTER_API_KEY`
-and `OPENROUTER_MODEL` configure the recipe fallback. Existing Supabase API keys
-may remain in `.env`, but the retired prototype client is no longer loaded.
+Supabase access tokens authenticate requests. Configure `SUPABASE_URL` and
+`SUPABASE_JWT_ALGORITHM`; HS256 also needs `SUPABASE_JWT_SECRET`. See
+[authentication setup and rollout limitations](docs/supabase-auth.md).
+`OPENROUTER_API_KEY` and `OPENROUTER_MODEL` configure the recipe fallback.
 
 ```sh
 python -m pip install -r requirements-dev.txt
@@ -24,7 +25,7 @@ A checked-in copy is in [docs/openapi.json](docs/openapi.json).
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/` | Liveness (not database readiness) |
-| POST | `/api/v1/users/register` | Sync Firebase user |
+| POST | `/api/v1/users/register` | Optional legacy profile sync |
 | GET | `/api/v1/users/me` | Current user |
 | GET, POST | `/api/v1/inventory/` | List or add inventory |
 | DELETE | `/api/v1/inventory/{item_id}` | Delete owned item |
@@ -34,7 +35,8 @@ A checked-in copy is in [docs/openapi.json](docs/openapi.json).
 | POST | `/api/v1/food/predict-expiry/{food_id}` | Predict expiry |
 
 The sample helper requires `ENABLE_SAMPLE_SCAN=true`. Keep it disabled in
-production. It retains its existing development-only user-ID persistence option.
+production. It requires a Supabase token and verified `X-Household-ID`; persistence
+can target only the authenticated user.
 The food predictor retains its existing response; its date attributes are not
 mapped database columns, so it must not be treated as durable date persistence.
 
@@ -50,8 +52,8 @@ python -m pytest tests/
 
 Tests use in-memory SQLite and mocked authentication/AI, never the configured
 live database or paid AI APIs. They cover current v1 routes, retired route 404s,
-and compare OpenAPI schemas and operation IDs against the pre-cleanup contract.
+and compare OpenAPI schemas and operation IDs against the documented contract.
 
 See [the retirement audit](docs/legacy-retirement.md) for migration notes.
-Households, analytics, Supabase JWT migration and RLS remain future features;
+Household CRUD, shared inventory and analytics remain separate features;
 [the target architecture](docs/target-architecture.md) is not the current contract.

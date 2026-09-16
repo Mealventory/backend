@@ -14,7 +14,6 @@ deprecation==2.1.0
 dnspython==2.8.0
 email-validator==2.3.0
 fastapi==0.135.1
-firebase_admin==7.2.0
 fsspec==2026.7.0
 git-filter-repo==2.47.0
 google-api-core==2.30.0
