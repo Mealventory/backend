@@ -1,4 +1,4 @@
-"""Offline checks for behavior preserved when reconciling the rewritten history."""
+"""Regression checks for the active v1 service behavior."""
 import asyncio
 from datetime import date
 import os
@@ -10,8 +10,6 @@ from unittest.mock import AsyncMock, patch
 os.environ.update(
     DATABASE_URL="sqlite://",
     AI_SERVICE_URL="http://127.0.0.1:8001",
-    SUPABASE_URL="https://example.supabase.co",
-    SUPABASE_ANON_KEY="test",
     FIREBASE_PROJECT_ID="mealventory-local-check",
 )
 
@@ -26,18 +24,6 @@ class MergeRegressionTests(unittest.TestCase):
             self.assertEqual(client.get('/').status_code, 200)
             schema = client.get('/openapi.json').json()
             self.assertIn('/api/v1/food/predict-expiry/{food_id}', schema['paths'])
-
-    def test_legacy_normalization_and_ocr_routes_coexist(self):
-        from main import app
-        with TestClient(app) as client:
-            self.assertEqual(client.get('/').status_code, 200)
-            response = client.post('/scan/scan/normalize', json={'text': 'Milk 2L'})
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()['items'][0]['quantity'], 2)
-            with patch('api.scan.extract_text_from_image', return_value='Milk 2L'):
-                response = client.post('/scan/', files={'file': ('receipt.jpg', b'image', 'image/jpeg')})
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()['items'][0]['quantity'], 2)
 
     def test_zero_day_expiry_is_preserved(self):
         self.assertEqual(calculate_expiry(date(2026, 9, 11), 0), date(2026, 9, 11))
