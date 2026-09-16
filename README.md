@@ -27,6 +27,11 @@ A checked-in copy is in [docs/openapi.json](docs/openapi.json).
 | GET | `/` | Liveness (not database readiness) |
 | POST | `/api/v1/users/register` | Optional legacy profile sync |
 | GET | `/api/v1/users/me` | Current user |
+| POST | `/api/v1/households` | Create household and owner membership |
+| POST | `/api/v1/households/join` | Join by invite code |
+| GET | `/api/v1/households/me` | List your households |
+| GET | `/api/v1/households/{household_id}/members` | List household members |
+| PATCH, DELETE | `/api/v1/households/{household_id}/members/{user_id}` | Manage roles or remove/leave |
 | GET, POST | `/api/v1/inventory/` | List or add inventory |
 | DELETE | `/api/v1/inventory/{item_id}` | Delete owned item |
 | POST | `/api/v1/scan/` | Scan and add inventory |
@@ -55,5 +60,6 @@ live database or paid AI APIs. They cover current v1 routes, retired route 404s,
 and compare OpenAPI schemas and operation IDs against the documented contract.
 
 See [the retirement audit](docs/legacy-retirement.md) for migration notes.
-Household CRUD, shared inventory and analytics remain separate features;
+See [household management](docs/household-management.md) for permissions and setup.
+Shared inventory and analytics remain separate features;
 [the target architecture](docs/target-architecture.md) is not the current contract.
