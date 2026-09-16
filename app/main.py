@@ -1,22 +1,15 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import api_router
-from app.core.security import get_firebase_app
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize Firebase on startup so the first request is not slow
-    get_firebase_app()
-    yield
+from app.core.auth_errors import AuthProblem, auth_problem_handler
 
 
 app = FastAPI(
     title="Mealventory API",
     version="1.0.0",
-    lifespan=lifespan,
 )
+
+app.add_exception_handler(AuthProblem, auth_problem_handler)
 
 # TODO: Replace "*" with your React Native / frontend origin before production
 app.add_middleware(

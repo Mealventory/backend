@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from datetime import date
 
 from app.dependencies.database import get_db
+from app.core.dependencies import get_current_user
 from app.services import food_service
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.post("/predict-expiry/{food_id}")

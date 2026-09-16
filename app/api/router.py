@@ -1,9 +1,10 @@
 from fastapi import APIRouter
+from app.core.auth_errors import AUTH_RESPONSES
 from app.api.v1 import inventory, scan, recipes, users
 from app.api.v1 import food
 
 
-api_router = APIRouter(prefix="/api/v1")
+api_router = APIRouter(prefix="/api/v1", responses=AUTH_RESPONSES)
 
 
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
