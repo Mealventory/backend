@@ -8,7 +8,7 @@ that same application, so either launch command exposes the same v1 API.
 Use Python 3.11.9 and configure `.env` with `DATABASE_URL` and `AI_SERVICE_URL`.
 Supabase access tokens authenticate requests. Configure `SUPABASE_URL` and
 `SUPABASE_JWT_ALGORITHM`; HS256 also needs `SUPABASE_JWT_SECRET`. See
-[authentication setup and rollout limitations](docs/supabase-auth.md).
+[authentication setup and rollout limitations](https://github.com/Mealventory/docs/blob/main/supabase-auth.md).
 `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` configure the recipe fallback.
 
 ```sh
@@ -18,7 +18,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Swagger UI: http://127.0.0.1:8000/docs
 OpenAPI: http://127.0.0.1:8000/openapi.json
-A checked-in copy is in [docs/openapi.json](docs/openapi.json).
+A checked-in copy is in the documentation repository: [openapi.json](https://github.com/Mealventory/docs/blob/main/openapi.json).
 
 ## Current API
 
@@ -59,7 +59,7 @@ Tests use in-memory SQLite and mocked authentication/AI, never the configured
 live database or paid AI APIs. They cover current v1 routes, retired route 404s,
 and compare OpenAPI schemas and operation IDs against the documented contract.
 
-See [the retirement audit](docs/legacy-retirement.md) for migration notes.
-See [household management](docs/household-management.md) for permissions and setup.
+See [the retirement audit](https://github.com/Mealventory/docs/blob/main/legacy-retirement.md) for migration notes.
+See [household management](https://github.com/Mealventory/docs/blob/main/household-management.md) for permissions and setup.
 Shared inventory and analytics remain separate features;
-[the target architecture](docs/target-architecture.md) is not the current contract.
+[the target architecture](https://github.com/Mealventory/docs/blob/main/target-architecture.md) is not the current contract.
