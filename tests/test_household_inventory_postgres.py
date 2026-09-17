@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from app.services import household_service
 from app.services import household_inventory_service as inventory
-from app.schemas.household_inventory import ItemCreate, ItemOut
+from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate
 from tests.test_household_postgres import postgres_engine, A
 from tests.test_init_db_postgres import pytestmark
 
@@ -17,3 +17,31 @@ def test_inventory_commit_visible_between_sessions(postgres_engine):
         inventory.delete_item(phone, home.id, created['id'])
     with Session(postgres_engine) as other_phone:
         assert inventory.list_items(other_phone, home.id) == []
+
+
+def test_edit_and_status_trigger_postgres(postgres_engine):
+    from sqlalchemy import text
+    from concurrent.futures import ThreadPoolExecutor
+    from app.core.auth_errors import AuthProblem
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Transitions')
+        rows = inventory.add_batch(db, home.id, [ItemCreate(name=f'Food {i}') for i in range(6)])
+        assert len(rows) == 6
+        item_id = rows[0]['id']
+        before = db.execute(text('SELECT updated_at FROM inventory_items WHERE id=:id'), {'id': item_id}).scalar()
+        row = inventory.update_item(db, home.id, item_id, ItemUpdate(quantity='2.125', expiry_date=None))
+        assert str(row['quantity']) == '2.125'
+        after = db.execute(text('SELECT updated_at FROM inventory_items WHERE id=:id'), {'id': item_id}).scalar()
+        assert after > before
+    def change(target):
+        with Session(postgres_engine) as db:
+            try:
+                return inventory.transition_item(db, home.id, item_id, target)['status']
+            except AuthProblem as error:
+                return error.status_code
+    with ThreadPoolExecutor(2) as pool:
+        results = list(pool.map(change, ['consumed', 'discarded']))
+    assert results.count(409) == 1
+    with Session(postgres_engine) as db:
+        assert len(inventory.list_items(db, home.id)) == 5
+        assert inventory.get_item(db, home.id, item_id)['status'] in ('consumed', 'discarded')

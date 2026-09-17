@@ -3168,6 +3168,1529 @@
         }
       }
     },
+    "/api/v1/items": {
+      "get": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "List Items",
+        "description": "List active items for the selected household, for any household member.",
+        "operationId": "list_items_api_v1_items_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "consumed",
+                "discarded"
+              ],
+              "type": "string",
+              "default": "active",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "zone",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pantry",
+                    "fridge",
+                    "freezer",
+                    "spicerack"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Zone"
+            }
+          },
+          {
+            "name": "expiring_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 3650,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expiring Days"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemOut"
+                  },
+                  "title": "Response List Items Api V1 Items Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Add Item",
+        "operationId": "add_item_api_v1_items_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/batch": {
+      "post": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Add Batch",
+        "description": "Persist all confirmed items in one transaction, or none on failure.",
+        "operationId": "add_batch_api_v1_items_batch_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ItemCreate"
+                },
+                "minItems": 1,
+                "maxItems": 100,
+                "title": "Items"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ItemOut"
+                  },
+                  "title": "Response Add Batch Api V1 Items Batch Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/{item_id}": {
+      "patch": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Update Item",
+        "description": "Edit active items. Explicit null clears expiry date or storage location.",
+        "operationId": "update_item_api_v1_items__item_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Delete Item",
+        "description": "Delete only from the selected household. Owners and members can delete.",
+        "operationId": "delete_item_api_v1_items__item_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/{item_id}/consume": {
+      "post": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Consume Item",
+        "description": "Mark consumed without deleting history; repeating the same action is safe.",
+        "operationId": "consume_item_api_v1_items__item_id__consume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/items/{item_id}/discard": {
+      "post": {
+        "tags": [
+          "Household inventory"
+        ],
+        "summary": "Discard Item",
+        "description": "Mark discarded without deleting history; conflicting final states return 409.",
+        "operationId": "discard_item_api_v1_items__item_id__discard_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Household-ID",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Household-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItemOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "instance": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item or location not in household"
+          },
+          "409": {
+            "description": "Item is no longer active or has a conflicting final status"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Health Check",
@@ -3398,6 +4921,217 @@
           "status"
         ],
         "title": "InventoryItemOut"
+      },
+      "ItemCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Category",
+            "default": "Pantry"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,9}|(?=[\\d.]{1,13}0*$)\\d{0,9}\\.\\d{0,3}0*$)"
+              }
+            ],
+            "title": "Quantity",
+            "default": "1"
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Unit",
+            "default": "units"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Date"
+          },
+          "storage_location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Location Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ItemCreate"
+      },
+      "ItemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "household_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Household Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Date"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "consumed",
+              "discarded"
+            ],
+            "title": "Status"
+          },
+          "storage_location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Location Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "household_id",
+          "name",
+          "category",
+          "quantity",
+          "unit",
+          "expiry_date",
+          "status"
+        ],
+        "title": "ItemOut"
+      },
+      "ItemUpdate": {
+        "properties": {
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,9}|(?=[\\d.]{1,13}0*$)\\d{0,9}\\.\\d{0,3}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "expiry_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Date"
+          },
+          "storage_location_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Storage Location Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ItemUpdate"
       },
       "ManualItemInput": {
         "properties": {
