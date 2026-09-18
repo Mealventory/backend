@@ -11,7 +11,21 @@ from app.schemas.inventory import InventoryItemOut
 from app.schemas.scan import SampleScanRequest
 from app.services import scan_service
 
-router = APIRouter()
+AI_ERROR_SCHEMA = {
+    "type": "object", "required": ["detail"],
+    "properties": {"detail": {"type": "object", "required": ["code", "message", "action"],
+        "properties": {"code": {"type": "string", "enum": ["AI_SERVICE_UNAVAILABLE"]},
+                       "message": {"type": "string"},
+                       "action": {"type": "string", "enum": ["manual_entry"]}}}},
+}
+router = APIRouter(responses={
+    code: {"description": description,
+           "content": {"application/json": {"schema": AI_ERROR_SCHEMA}}}
+    for code, description in (
+        (503, "AI service unavailable; enter items manually or retry shortly"),
+        (504, "AI request timed out; enter items manually or retry shortly"),
+    )
+})
 
 @router.post(
     "/",

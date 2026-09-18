@@ -1077,33 +1077,39 @@
             }
           },
           "503": {
-            "description": "Service Unavailable",
+            "description": "AI service unavailable; enter items manually or retry shortly",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "detail",
-                    "instance"
+                    "detail"
                   ],
                   "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
                     "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message",
+                        "action"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "AI_SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "manual_entry"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -1112,6 +1118,46 @@
           },
           "422": {
             "description": "Image type mismatch or no food items detected"
+          },
+          "504": {
+            "description": "AI request timed out; enter items manually or retry shortly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message",
+                        "action"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "AI_SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "manual_entry"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1207,33 +1253,39 @@
             "description": "Sample scan route disabled"
           },
           "503": {
-            "description": "Service Unavailable",
+            "description": "AI service unavailable; enter items manually or retry shortly",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "detail",
-                    "instance"
+                    "detail"
                   ],
                   "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
                     "detail": {
-                      "type": "string"
-                    },
-                    "instance": {
-                      "type": "string"
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message",
+                        "action"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "AI_SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "manual_entry"
+                          ]
+                        }
+                      }
                     }
                   }
                 }
@@ -1245,6 +1297,46 @@
           },
           "422": {
             "description": "Image mismatch or no food detected"
+          },
+          "504": {
+            "description": "AI request timed out; enter items manually or retry shortly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "detail"
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message",
+                        "action"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "AI_SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "manual_entry"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
