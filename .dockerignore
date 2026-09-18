@@ -1,0 +1,14 @@
+# Allow only the files used to build the runtime image.
+**
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!main.py
+!app/
+!app/**
+**/__pycache__/
+**/*.pyc
+**/.env*
+**/credentials/
+**/*.pem
+**/*.key
