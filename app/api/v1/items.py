@@ -7,7 +7,7 @@ from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
 from app.services import household_inventory_service as service
 
-router = APIRouter(responses={400: {'description': 'Invalid storage zone or household header'}, 404: {'description': 'Item or location not in household'},
+router = APIRouter(responses={400: {'description': 'Invalid storage zone, household header, or item is not active'}, 404: {'description': 'Item or location not in household'},
                              409: {'description': 'Item is no longer active or has a conflicting final status'}})
 
 
@@ -36,13 +36,13 @@ def update_item(item_id: UUID, patch: ItemUpdate,
 
 @router.post('/{item_id}/consume', response_model=ItemOut)
 def consume_item(item_id: UUID, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
-    """Mark consumed without deleting history; repeating the same action is safe."""
+    """Mark an active item consumed without deleting history. Non-active items return 400."""
     return service.transition_item(db, household_id, item_id, 'consumed')
 
 
 @router.post('/{item_id}/discard', response_model=ItemOut)
 def discard_item(item_id: UUID, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
-    """Mark discarded without deleting history; conflicting final states return 409."""
+    """Mark an active item discarded without deleting history. Non-active items return 400."""
     return service.transition_item(db, household_id, item_id, 'discarded')
 
 
