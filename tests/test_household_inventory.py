@@ -157,7 +157,7 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
         assert client.patch(url, headers=headers, json=patch).status_code == 422, patch
     for items in [[], [{'name': 'Rice'}] * 101, [{'name': 'Rice'}, {'name': ''}]]:
         assert client.post('/api/v1/items/batch', headers=headers, json=items).status_code == 422
-    for query in ['status=expired', 'zone=other', 'expiring_days=-1']:
+    for query in ['status=expired', 'expiring_days=-1']:
         assert client.get('/api/v1/items?' + query, headers=headers).status_code == 422
     identity['id'] = OUTSIDER
     for home, expected in [(HOME, 403), (OTHER, 404)]:

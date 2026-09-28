@@ -52,6 +52,7 @@ def add_item(db, household_id, item, *, commit=True):
     food_id, item_id = str(uuid4()), str(uuid4())
     try:
         _check_location(db, household_id, item.storage_location_id)
+        location = str(item.storage_location_id) if item.storage_location_id else _zone_location(db, household_id, item.storage_zone)
         db.execute(text('''INSERT INTO foods (id, name, category, default_unit)
             VALUES (:id, :name, :category, :unit)'''),
                    dict(id=food_id, name=item.name, category=item.category, unit=item.unit))
@@ -60,7 +61,7 @@ def add_item(db, household_id, item, *, commit=True):
             VALUES (:id, :household_id, :food_id, :quantity, :unit, :expiry_date, 'active', :location)'''),
                    dict(id=item_id, household_id=str(household_id), food_id=food_id,
                         quantity=str(item.quantity), unit=item.unit, expiry_date=item.expiry_date,
-                        location=str(item.storage_location_id) if item.storage_location_id else None))
+                        location=location))
         result = dict(db.execute(text(ITEM_SELECT + ' AND i.id = :id'),
                                 dict(household_id=str(household_id), id=item_id)).mappings().one())
         if commit:

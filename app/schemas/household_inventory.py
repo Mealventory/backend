@@ -1,11 +1,18 @@
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
-from typing import Literal
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from typing import Literal, Annotated
+from pydantic import BaseModel, Field, ConfigDict, model_validator, BeforeValidator
 
 ItemStatus = Literal['active', 'consumed', 'discarded']
-StorageZone = Literal['pantry', 'fridge', 'freezer', 'spicerack']
+def validate_storage_zone(value):
+    if value not in ('pantry', 'fridge', 'freezer', 'spicerack'):
+        from app.core.auth_errors import AuthProblem
+        raise AuthProblem(400, 'Storage zone must be pantry, fridge, freezer or spicerack')
+    return value
+
+
+StorageZone = Annotated[Literal['pantry', 'fridge', 'freezer', 'spicerack'], BeforeValidator(validate_storage_zone)]
 
 
 class ItemCreate(BaseModel):
@@ -16,6 +23,14 @@ class ItemCreate(BaseModel):
     unit: str = Field(default='units', min_length=1, max_length=80)
     expiry_date: date | None = None
     storage_location_id: UUID | None = None
+
+    storage_zone: StorageZone = 'pantry'
+
+    @model_validator(mode='after')
+    def validate_storage(self):
+        if 'storage_zone' in self.model_fields_set and self.storage_location_id is not None:
+            raise ValueError('Provide storage_zone or storage_location_id, not both')
+        return self
 
 
 class ItemUpdate(BaseModel):
