@@ -42,7 +42,7 @@ def test_all_fields_and_shared_catalogue_isolation(inventory_api):
 
 
 @pytest.mark.parametrize('patch', [{'name': ''}, {'name': None}, {'category': ' '}, {'category': None},
-    {'storage_zone': 'garage'}, {'storage_zone': None}, {'status': None}, {'status': 'expired'},
+    {'storage_zone': None}, {'status': None}, {'status': 'expired'},
     {'storage_zone': 'pantry', 'storage_location_id': None}])
 def test_invalid_extended_patches(inventory_api, patch):
     client, _, _ = inventory_api

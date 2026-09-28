@@ -67,3 +67,19 @@ def test_extended_edit_and_concurrent_zone_creation(postgres_engine):
         after = db.execute(text('SELECT updated_at FROM inventory_items WHERE id=:id'), {'id': items[0]['id']}).scalar()
         assert after > before and row['status'] == 'discarded' and row['storage_zone'] == 'freezer'
         assert len(inventory.list_items(db, home.id, zone='fridge')) == 1
+
+
+def test_concurrent_create_defaults_and_explicit_zones(postgres_engine):
+    from concurrent.futures import ThreadPoolExecutor
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Create zones')
+    def create(index):
+        with Session(postgres_engine) as db:
+            return inventory.add_item(db, home.id, ItemCreate(name=f'Food {index}', storage_zone='freezer'))
+    with ThreadPoolExecutor(2) as pool:
+        rows = list(pool.map(create, range(2)))
+    assert rows[0]['storage_location_id'] == rows[1]['storage_location_id']
+    with Session(postgres_engine) as db:
+        assert len(inventory.list_items(db, home.id, zone='freezer')) == 2
+        default = inventory.add_item(db, home.id, ItemCreate(name='Rice'))
+        assert default['storage_zone'] == 'pantry'

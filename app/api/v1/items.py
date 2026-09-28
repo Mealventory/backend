@@ -7,7 +7,7 @@ from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
 from app.services import household_inventory_service as service
 
-router = APIRouter(responses={404: {'description': 'Item or location not in household'},
+router = APIRouter(responses={400: {'description': 'Invalid storage zone or household header'}, 404: {'description': 'Item or location not in household'},
                              409: {'description': 'Item is no longer active or has a conflicting final status'}})
 
 
