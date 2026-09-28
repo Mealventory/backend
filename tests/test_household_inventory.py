@@ -105,10 +105,12 @@ def test_member_edit_and_terminal_states(inventory_api):
     assert edited.json()['quantity'] == '2.5'
     assert edited.json()['expiry_date'] is None
     assert edited.json()['name'] == 'Milk'
-    for _ in range(2):
-        result = client.post(url + '/consume', headers=headers)
-        assert result.status_code == 200 and result.json()['status'] == 'consumed'
-    assert client.post(url + '/discard', headers=headers).status_code == 409
+    result = client.post(url + '/consume', headers=headers)
+    assert result.status_code == 200 and result.json()['status'] == 'consumed'
+    for action in ('consume', 'discard'):
+        result = client.post(url + '/' + action, headers=headers)
+        assert result.status_code == 400
+        assert result.json()['detail'] == 'Item is not active'
     assert client.patch(url, headers=headers, json={'quantity': 3}).status_code == 409
     assert client.get('/api/v1/items', headers=headers).json() == []
     assert client.get('/api/v1/items?status=consumed', headers=headers).json()[0]['id'] == row['id']
@@ -164,3 +166,19 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
         assert client.patch(url, headers={'X-Household-ID': home}, json={'quantity': 4}).status_code == expected
         for action in ['consume', 'discard']:
             assert client.post(url + '/' + action, headers={'X-Household-ID': home}).status_code == expected
+
+
+def test_discard_history_visible_to_another_member(inventory_api):
+    client, identity, engine = inventory_api
+    headers = {'X-Household-ID': HOME}
+    row = client.post('/api/v1/items', headers=headers, json={'name': 'Bread'}).json()
+    identity['id'] = MEMBER
+    url = '/api/v1/items/' + row['id']
+    assert client.post(url + '/discard', headers=headers).json()['status'] == 'discarded'
+    identity['id'] = OWNER
+    assert client.get('/api/v1/items', headers=headers).json() == []
+    assert client.get('/api/v1/items?status=discarded', headers=headers).json()[0]['id'] == row['id']
+    for action in ('consume', 'discard'):
+        assert client.post(url + '/' + action, headers=headers).status_code == 400
+    with engine.connect() as db:
+        assert db.execute(text('SELECT count(*) FROM inventory_items')).scalar() == 1

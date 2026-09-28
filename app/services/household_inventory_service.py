@@ -150,8 +150,8 @@ def transition_item(db, household_id, item_id, target):
             WHERE id = :id AND household_id = :household_id AND status = 'active' '''),
             dict(target=target, id=str(item_id), household_id=str(household_id)))
         row = get_item(db, household_id, item_id)
-        if result.rowcount == 0 and row['status'] != target:
-            raise AuthProblem(409, 'Item already has a different final status')
+        if result.rowcount == 0:
+            raise AuthProblem(400, 'Item is not active')
         db.commit()
         return row
     except Exception:
