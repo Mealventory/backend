@@ -10,7 +10,9 @@ from app.core.auth_errors import AuthProblem
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.unit, i.expiry_date, i.status, i.storage_location_id
+    i.quantity, i.unit, i.expiry_date, i.status, i.storage_location_id,
+    (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
+        AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
     WHERE i.household_id = :household_id'''
 
@@ -79,24 +81,57 @@ def add_batch(db, household_id, items):
         raise
 
 
+def _zone_location(db, household_id, zone):
+    name = f'Default {zone}'
+    params = dict(id=str(uuid4()), household_id=str(household_id), name=name, zone=zone)
+    db.execute(text("""INSERT INTO storage_locations (id, household_id, name, zone)
+        VALUES (:id, :household_id, :name, :zone)
+        ON CONFLICT (household_id, name) DO NOTHING"""), params)
+    row = db.execute(text('SELECT id, zone FROM storage_locations WHERE household_id=:household_id AND name=:name'), params).mappings().one()
+    if row['zone'] != zone:
+        raise AuthProblem(409, 'Default storage location has a different zone; choose a storage_location_id')
+    return str(row['id'])
+
+
 def update_item(db, household_id, item_id, patch):
     try:
         values = patch.model_dump(exclude_unset=True)
+        params = dict(id=str(item_id), household_id=str(household_id))
+        # Serialize all edits against status transitions before copying catalogue data.
+        lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
+        current = db.execute(text('SELECT food_id, status FROM inventory_items '
+            'WHERE id=:id AND household_id=:household_id' + lock), params).mappings().first()
+        if current is None:
+            raise AuthProblem(404, 'Item not found in this household')
+        if current['status'] != 'active':
+            if values == {'status': current['status']}:
+                row = get_item(db, household_id, item_id)
+                db.commit()
+                return row
+            raise AuthProblem(409, 'Only active items can be edited')
         if 'storage_location_id' in values:
             _check_location(db, household_id, values['storage_location_id'])
-        # Field names originate only from the validated schema, never raw request keys.
-        columns = {'quantity', 'unit', 'expiry_date', 'storage_location_id'}
-        values = {key: value for key, value in values.items() if key in columns}
+        if 'storage_zone' in values:
+            values['storage_location_id'] = _zone_location(db, household_id, values.pop('storage_zone'))
+        if 'name' in values or 'category' in values:
+            # Food rows can be shared by other households and recipe ingredients.
+            food = db.execute(text('SELECT name, category, default_unit, avg_shelf_life_days FROM foods WHERE id=:food_id'),
+                              {'food_id': str(current['food_id'])}).mappings().one()
+            name = values.pop('name', food['name'])
+            category = values.pop('category', food['category'])
+            if (name, category) != (food['name'], food['category']):
+                food_id = str(uuid4())
+                db.execute(text('INSERT INTO foods (id, name, category, default_unit, avg_shelf_life_days) VALUES (:id, :name, :category, :unit, :shelf_life)'),
+                           dict(id=food_id, name=name, category=category, unit=food['default_unit'], shelf_life=food['avg_shelf_life_days']))
+                values['food_id'] = food_id
         for key in ('quantity', 'storage_location_id'):
             if values.get(key) is not None:
                 values[key] = str(values[key])
-        assignments = ', '.join(f'{key} = :{key}' for key in values)
-        result = db.execute(text(f'''UPDATE inventory_items SET {assignments}
-            WHERE id = :id AND household_id = :household_id AND status = 'active' '''),
-            dict(values, id=str(item_id), household_id=str(household_id)))
-        if result.rowcount == 0:
-            get_item(db, household_id, item_id)
-            raise AuthProblem(409, 'Only active items can be edited')
+        if values:
+            # Keys come exclusively from ItemUpdate and the internal food replacement.
+            assignments = ', '.join(f'{key} = :{key}' for key in values)
+            db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
+                       dict(values, **params))
         row = get_item(db, household_id, item_id)
         db.commit()
         return row

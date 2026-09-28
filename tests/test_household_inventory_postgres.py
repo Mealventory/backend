@@ -45,3 +45,25 @@ def test_edit_and_status_trigger_postgres(postgres_engine):
     with Session(postgres_engine) as db:
         assert len(inventory.list_items(db, home.id)) == 5
         assert inventory.get_item(db, home.id, item_id)['status'] in ('consumed', 'discarded')
+
+
+def test_extended_edit_and_concurrent_zone_creation(postgres_engine):
+    from concurrent.futures import ThreadPoolExecutor
+    from sqlalchemy import text
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Full edits')
+        items = inventory.add_batch(db, home.id, [ItemCreate(name='Rice'), ItemCreate(name='Milk')])
+    def edit(item):
+        with Session(postgres_engine) as db:
+            return inventory.update_item(db, home.id, item['id'], ItemUpdate(
+                name='Corrected ' + item['name'], category='Corrected', storage_zone='fridge', quantity='2.125'))
+    with ThreadPoolExecutor(2) as pool:
+        rows = list(pool.map(edit, items))
+    assert rows[0]['storage_location_id'] == rows[1]['storage_location_id']
+    assert all(row['storage_zone'] == 'fridge' for row in rows)
+    with Session(postgres_engine) as db:
+        before = db.execute(text('SELECT updated_at FROM inventory_items WHERE id=:id'), {'id': items[0]['id']}).scalar()
+        row = inventory.update_item(db, home.id, items[0]['id'], ItemUpdate(status='discarded', storage_zone='freezer'))
+        after = db.execute(text('SELECT updated_at FROM inventory_items WHERE id=:id'), {'id': items[0]['id']}).scalar()
+        assert after > before and row['status'] == 'discarded' and row['storage_zone'] == 'freezer'
+        assert len(inventory.list_items(db, home.id, zone='fridge')) == 1

@@ -24,9 +24,9 @@ def inventory_api():
     HouseholdMember.__table__.create(engine)
     with engine.begin() as c:
         c.execute(text('''CREATE TABLE storage_locations (id text PRIMARY KEY,
-            household_id text NOT NULL, zone text NOT NULL)'''))
+            household_id text NOT NULL, zone text NOT NULL, name text, UNIQUE(household_id, name))'''))
         c.execute(text('''CREATE TABLE foods (id text PRIMARY KEY, name text NOT NULL,
-            category text, default_unit text NOT NULL)'''))
+            category text, default_unit text NOT NULL, avg_shelf_life_days integer)'''))
         c.execute(text('''CREATE TABLE inventory_items (id text PRIMARY KEY,
             household_id text NOT NULL, food_id text NOT NULL, quantity numeric NOT NULL,
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
@@ -123,7 +123,7 @@ def test_batch_atomicity_filters_and_storage_isolation(inventory_api):
     location = '30000000-0000-0000-0000-000000000001'
     foreign = '30000000-0000-0000-0000-000000000002'
     with engine.begin() as c:
-        c.execute(text('INSERT INTO storage_locations VALUES (:id, :home, :zone)'), [
+        c.execute(text('INSERT INTO storage_locations (id, household_id, zone) VALUES (:id, :home, :zone)'), [
             {'id': location, 'home': HOME, 'zone': 'fridge'},
             {'id': foreign, 'home': OTHER, 'zone': 'fridge'}])
     response = client.post('/api/v1/items/batch', headers=headers, json=[
@@ -153,7 +153,7 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
     url = '/api/v1/items/' + row['id']
     for patch in [{}, {'quantity': None}, {'quantity': 0}, {'quantity': 'NaN'},
                   {'quantity': '1.0001'}, {'unit': ''}, {'unit': None},
-                  {'expiry_date': '2026-02-30'}, {'status': 'consumed'}, {'household_id': OTHER}]:
+                  {'expiry_date': '2026-02-30'}, {'status': 'invalid'}, {'household_id': OTHER}]:
         assert client.patch(url, headers=headers, json=patch).status_code == 422, patch
     for items in [[], [{'name': 'Rice'}] * 101, [{'name': 'Rice'}, {'name': ''}]]:
         assert client.post('/api/v1/items/batch', headers=headers, json=items).status_code == 422

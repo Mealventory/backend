@@ -30,7 +30,7 @@ def add_batch(items: Annotated[list[ItemCreate], Body(min_length=1, max_length=1
 @router.patch('/{item_id}', response_model=ItemOut)
 def update_item(item_id: UUID, patch: ItemUpdate,
                 household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
-    """Edit active items. Explicit null clears expiry date or storage location."""
+    """Edit active items atomically, including labels, zone and status. Null clears expiry or location."""
     return service.update_item(db, household_id, item_id, patch)
 
 

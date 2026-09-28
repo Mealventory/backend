@@ -20,6 +20,10 @@ class ItemCreate(BaseModel):
 
 class ItemUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    category: str | None = Field(default=None, min_length=1, max_length=80)
+    storage_zone: StorageZone | None = None
+    status: ItemStatus | None = None
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
     unit: str | None = Field(default=None, min_length=1, max_length=80)
     expiry_date: date | None = None
@@ -29,9 +33,11 @@ class ItemUpdate(BaseModel):
     def validate_patch(self):
         if not self.model_fields_set:
             raise ValueError('Provide at least one field to update')
-        for field in ('quantity', 'unit'):
+        for field in ('quantity', 'unit', 'name', 'category', 'storage_zone', 'status'):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f'{field} cannot be null')
+        if {'storage_zone', 'storage_location_id'} <= self.model_fields_set:
+            raise ValueError('Provide storage_zone or storage_location_id, not both')
         return self
 
 
@@ -45,3 +51,4 @@ class ItemOut(BaseModel):
     expiry_date: date | None
     status: ItemStatus
     storage_location_id: UUID | None = None
+    storage_zone: StorageZone | None = None
