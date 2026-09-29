@@ -65,3 +65,14 @@ async def scan_from_sample(
             raise AuthProblem(403, "Cannot store samples for another user")
         payload = payload.model_copy(update={"user_id": current_user.id})
     return await scan_service.scan_from_sample(payload, db)
+
+
+@router.post('/preview')
+async def preview_scan(
+    mode: Annotated[Literal['food', 'receipt', 'tag'], Form(...)],
+    file: Annotated[UploadFile, File(...)],
+    current_user: Annotated[UserOut, Depends(get_current_user)],
+    household_id: Annotated[UUID, Depends(get_current_household)],
+):
+    """Recognize an image for review without saving inventory items."""
+    return await scan_service.preview_scan(mode, file)

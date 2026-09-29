@@ -338,3 +338,29 @@ async def scan_from_sample(payload: SampleScanRequest, db: Session):
     parsed_expiry = parse_detected_expiry_date(expiry_dates[0]) if expiry_dates else None
     _add_detected_items_for_user(db, payload.user_id, may_expire_counts, default_expiry=parsed_expiry)
     return _build_sample_response(payload, normalized_mode, detection, detected_item_counts, may_expire_counts, freezer_only_counts, manual_item_counts, manual_freezer_counts, may_expire_items)
+
+
+async def preview_scan(mode: str, file: UploadFile):
+    """Detect candidates without inserting inventory rows before user confirmation."""
+    if file.content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+        raise HTTPException(415, detail='Use a JPEG, PNG or WebP image.')
+    content = await file.read(8 * 1024 * 1024 + 1)
+    if not content:
+        raise HTTPException(400, detail='Uploaded image is empty')
+    if len(content) > 8 * 1024 * 1024:
+        raise HTTPException(413, detail='Image is too large. Max size is 8MB')
+    detection = await detect_food(content, _normalize_mode(mode))
+    if detection.get('type') == 'mismatch':
+        raise HTTPException(422, detail='Image content does not match the selected mode')
+    dates = [parse_detected_expiry_date(raw) for raw in detection.get('expiry_dates', [])]
+    expiry = next((value.date().isoformat() for value in dates if value), None) if mode == 'tag' else None
+    details = {item['name']: item for item in detection.get('item_details', []) if isinstance(item, dict) and item.get('name')}
+    items = [{
+        'name': name, 'category': 'Pantry', 'quantity': count, 'unit': 'units',
+        'expiry_date': expiry, 'confidence': details.get(name, {}).get('confidence'),
+    } for name, count in _build_quantity_map(detection.get('items', [])).items()]
+    if not items and mode == 'tag' and expiry:
+        items = [{'name': '', 'category': 'Pantry', 'quantity': 1, 'unit': 'units', 'expiry_date': expiry}]
+    if not items:
+        raise HTTPException(422, detail='No food items detected. Try a clearer photo or enter the item manually.')
+    return {'items': items, 'needs_user_input': not bool(detection.get('items')), 'prompt': detection.get('prompt')}
