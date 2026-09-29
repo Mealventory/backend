@@ -56,3 +56,13 @@ def delete_item(item_id: UUID, household_id: UUID = Depends(get_current_househol
     """Delete only from the selected household. Owners and members can delete."""
     service.delete_item(db, household_id, item_id)
     return Response(status_code=204)
+
+
+from app.schemas.expiry_prediction import ExpiryPredictionInput, ExpiryPredictionOutput
+from app.services.household_expiry_service import predict_expiry
+
+@router.post('/predict-expiry', response_model=ExpiryPredictionOutput)
+async def predict_item_expiry(request: ExpiryPredictionInput,
+                              household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+    """Suggest an expiry date without saving or replacing the item's existing date."""
+    return await predict_expiry(db, household_id, request)
