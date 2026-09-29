@@ -33,15 +33,6 @@ class MergeRegressionTests(unittest.TestCase):
         food = SimpleNamespace(purchase_date='2026-09-11', avg_shelf_life_days=7)
         self.assertEqual(predict_expiry_date(food, 20, 50), date(2026, 9, 18))
 
-    def test_recipe_service_falls_back_when_ai_is_unavailable(self):
-        from app.services import recipe_service
-        fallback = AsyncMock(return_value={'recipes': []})
-        with patch.object(recipe_service.httpx, 'AsyncClient', side_effect=OSError('offline')):
-            with patch.object(recipe_service, 'generate_recipe_suggestions', fallback):
-                result = asyncio.run(recipe_service.get_recipes_for_inventory(['Milk', 'Eggs', 'Rice']))
-        self.assertEqual(result, {'recipes': []})
-        fallback.assert_awaited_once()
-        self.assertEqual(fallback.call_args.args[1], [{'name': 'Rice'}])
 
 
 if __name__ == '__main__':

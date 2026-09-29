@@ -11,6 +11,8 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
 async def generate_recipe_suggestions(priority_items, other_items):
+    if not OPENROUTER_API_KEY:
+        raise ValueError("Recipe provider is not configured")
     prompt = f"""
 You are a meal planning assistant for a food waste reduction app.
 
