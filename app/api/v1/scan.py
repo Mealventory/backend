@@ -42,7 +42,7 @@ async def scan_and_add(
 	db: Annotated[Session, Depends(get_db)],
 ):
     "Upload an image with a selected mode (food, receipt, tag).\nThe ai-service detects food items and they are automatically added\nto the user's inventory."
-    return await scan_service.scan_and_add(mode, file, current_user, db)
+    return await scan_service.scan_and_add(mode, file, current_user, db, household_id=str(household_id))
 
 @router.post(
 	"/sample",

@@ -1,6 +1,4 @@
-# models/food.py
-
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String
 from app.db.base import Base
 
 
@@ -10,8 +8,6 @@ class Food(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    type = Column(String)
-    subtype = Column(String)
-    avg_shelf_life_days = Column(Integer)
-    temperature = Column(Float, nullable=True)
-    humidity = Column(Float, nullable=True)
+    category = Column(String, nullable=True)
+    default_unit = Column(String, nullable=True)
+    avg_shelf_life_days = Column(Integer, nullable=True)
