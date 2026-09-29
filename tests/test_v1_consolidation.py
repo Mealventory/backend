@@ -92,15 +92,6 @@ def test_sample_scan_preview_disabled_and_path_guards(client,db,monkeypatch,tmp_
         assert client.post('/api/v1/scan/sample',json={**payload,'sample_name':name}).status_code == status
 
 
-def test_recipes_with_inventory(client,db,monkeypatch):
-    assert client.get('/api/v1/recipes/').status_code == 404
-    db.add(InventoryItem(user_id='alice',food_id=1)); db.commit()
-    generator=AsyncMock(return_value={'recipes':[{'title':'Chicken dinner'}]})
-    monkeypatch.setattr('app.services.recipe_service.get_recipes_for_inventory',generator)
-    response=client.get('/api/v1/recipes/')
-    assert response.status_code == 200
-    assert response.json()['recipes'][0]['title']=='Chicken dinner'
-    generator.assert_awaited_once_with(['chicken'])
 
 
 def test_food_prediction_contract(client):

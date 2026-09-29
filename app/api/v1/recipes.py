@@ -18,4 +18,4 @@ async def get_recipes(
 	db: Session = Depends(get_db),
 ):
     """Return recipe suggestions for the current inventory."""
-    return await get_inventory_recipes(current_user, db)
+    return await get_inventory_recipes(household_id, db)
