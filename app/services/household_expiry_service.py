@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.services.household_inventory_service import get_item
 from app.schemas.expiry_prediction import ExpiryPredictionOutput
+from app.services.shelf_life_catalogue import catalogue_prediction
 
 async def predict_expiry(db, household_id, request):
     # This endpoint only suggests a date. Saving remains an explicit inventory operation.
@@ -14,6 +15,9 @@ async def predict_expiry(db, household_id, request):
             raise HTTPException(400, 'Only active items can request predictions')
     def unavailable(message):
         return ExpiryPredictionOutput(source='unavailable', explanation=message, purchase_date=request.purchase_date)
+    guidance = catalogue_prediction(request)
+    if guidance is not None:
+        return guidance
     # The checked-in model was trained at 4–25 C; do not extrapolate to frozen food.
     if request.storage_zone in ('freezer', 'spicerack'):
         return unavailable('Estimates are not available for this storage zone. Use the package date or enter a date manually.')
@@ -27,7 +31,7 @@ async def predict_expiry(db, household_id, request):
             AND f.avg_shelf_life_days BETWEEN 5 AND 30"""),
             {'household': str(household_id), 'name': request.name}).scalars().all()
         if len(values) != 1:
-            return unavailable('No known shelf life for this food. Enter its usual shelf life if known, or keep a manual expiry date.')
+            return unavailable('This food is not in our storage guide yet. Try a simple food name, use the package date, or enter a known shelf life for an experimental estimate.')
         baseline = values[0]
         source = 'catalog'
     temperature, humidity = (4.0, 50.0) if request.storage_zone == 'fridge' else (20.0, 50.0)
