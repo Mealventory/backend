@@ -199,3 +199,23 @@ def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor, name)
                         json={**body, 'name': name + ' frozen dessert'}).json()
     assert other['predicted_expiry_date'] is None
     predictor.post.assert_not_awaited()
+
+
+@pytest.mark.parametrize('name', ['Mandarin', 'tangerine', 'clementine', 'oranges', 'lemon'])
+def test_citrus_pantry_estimate_uses_room_temperature_guidance(inventory_api, predictor, name):
+    client, _, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    body = {**catalogue_payload(name), 'storage_zone': 'pantry'}
+    prompt = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert prompt['food_state_options'] == ['whole']
+    assert prompt['predicted_expiry_date'] is None
+    body['food_state'] = 'whole'
+    result = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert result['source'] == 'catalogue'
+    assert result['predicted_expiry_date'] == str(date.today() + timedelta(days=7))
+    assert 'room temperature' in result['explanation']
+    assert result['source_name'] == 'University of Illinois Extension'
+    body['storage_zone'] = 'fridge'
+    chilled = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert chilled['shelf_life_days'] == 14
+    predictor.post.assert_not_awaited()

@@ -674,6 +674,32 @@
       "source_url": "https://blogs.extension.iastate.edu/answerline/2019/03/25/how-to-store-fresh-ginger/comment-page-1/",
       "source_name": "Iowa State University Extension",
       "note": "Fresh, unpeeled ginger root at room temperature."
+    },
+    {
+      "name": "citrus",
+      "aliases": [
+        "citrus",
+        "citrus fruit",
+        "orange",
+        "oranges",
+        "mandarin",
+        "mandarins",
+        "clementine",
+        "clementines",
+        "tangerine",
+        "tangerines",
+        "lemon",
+        "lemons",
+        "lime",
+        "limes"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "pantry",
+      "anchor": "purchase",
+      "source_url": "https://extension.illinois.edu/blogs/live-well-eat-well/2024-01-24-eat-all-varieties-winter-citrus",
+      "source_name": "University of Illinois Extension",
+      "note": "Estimated quality window for fresh, whole, unpeeled citrus at room temperature. Check daily; discard moldy fruit. Refrigeration generally preserves quality longer."
     }
   ]
 }
