@@ -175,3 +175,26 @@ def test_ginger_pantry_uses_its_own_guidance(inventory_api, predictor):
     assert result['shelf_life_days'] == 7
     assert result['source_name'] == 'Iowa State University Extension'
     predictor.post.assert_not_awaited()
+
+
+def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor):
+    client, _, _ = inventory_api
+    body = catalogue_payload('Oikos Yogurt Grec Nature')
+    headers = {'X-Household-ID': HOME}
+    first = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert first['food_state_options'] == ['opened', 'unopened']
+    assert first['predicted_expiry_date'] is None
+    opened = client.post('/api/v1/items/predict-expiry', headers=headers,
+                         json={**body, 'food_state': 'opened'}).json()
+    assert opened['source'] == 'catalogue'
+    assert opened['matched_food'] == 'yogurt'
+    assert opened['shelf_life_days'] == 3
+    unopened = client.post('/api/v1/items/predict-expiry', headers=headers,
+                           json={**body, 'food_state': 'unopened'}).json()
+    assert unopened['predicted_expiry_date'] is None
+    assert 'package' in unopened['explanation']
+    # A related name must not accidentally classify a different food as yogurt.
+    other = client.post('/api/v1/items/predict-expiry', headers=headers,
+                        json={**body, 'name': 'Oikos Yogurt Grec Nature frozen dessert'}).json()
+    assert other['predicted_expiry_date'] is None
+    predictor.post.assert_not_awaited()
