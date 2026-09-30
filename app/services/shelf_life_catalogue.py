@@ -10,7 +10,10 @@ from app.schemas.expiry_prediction import ExpiryPredictionOutput
 
 
 def normalize_name(name):
-    return re.sub(r'\s+', ' ', unicodedata.normalize('NFKC', name).casefold()).strip()
+    name = unicodedata.normalize('NFKC', name).casefold()
+    # Equivalent spellings only; keep the rest of the product name intact.
+    name = re.sub(r'\b(?:yogourt|yoghurt|yaourt)\b', 'yogurt', name)
+    return re.sub(r'\s+', ' ', name).strip()
 
 
 @lru_cache(maxsize=1)
@@ -21,7 +24,7 @@ def catalogue():
 
 def catalogue_prediction(request):
     """None means unknown food; unavailable means known but unsupported conditions."""
-    matches = [entry for entry in catalogue() if normalize_name(request.name) in entry['aliases']]
+    matches = [entry for entry in catalogue() if normalize_name(request.name) in {normalize_name(alias) for alias in entry['aliases']}]
     if not matches:
         return None
     def result(message, **kwargs):

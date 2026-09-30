@@ -177,9 +177,10 @@ def test_ginger_pantry_uses_its_own_guidance(inventory_api, predictor):
     predictor.post.assert_not_awaited()
 
 
-def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor):
+@pytest.mark.parametrize('name', ['Oikos Yogurt Grec Nature', 'Oikos Yogourt grec nature', 'Oikos Yoghurt Grec Nature', '  OIKOS  YOGOURT grec nature  '])
+def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor, name):
     client, _, _ = inventory_api
-    body = catalogue_payload('Oikos Yogurt Grec Nature')
+    body = catalogue_payload(name)
     headers = {'X-Household-ID': HOME}
     first = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
     assert first['food_state_options'] == ['opened', 'unopened']
@@ -195,6 +196,6 @@ def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor):
     assert 'package' in unopened['explanation']
     # A related name must not accidentally classify a different food as yogurt.
     other = client.post('/api/v1/items/predict-expiry', headers=headers,
-                        json={**body, 'name': 'Oikos Yogurt Grec Nature frozen dessert'}).json()
+                        json={**body, 'name': name + ' frozen dessert'}).json()
     assert other['predicted_expiry_date'] is None
     predictor.post.assert_not_awaited()
