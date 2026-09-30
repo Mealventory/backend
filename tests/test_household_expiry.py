@@ -17,7 +17,7 @@ def predictor(monkeypatch):
     return client
 
 def payload(**kwargs):
-    return dict(name='Milk', storage_zone='fridge', purchase_date=str(date.today()), avg_shelf_life_days=7, **kwargs)
+    return dict(name='Uncatalogued food', storage_zone='fridge', purchase_date=str(date.today()), avg_shelf_life_days=7, **kwargs)
 
 def test_prediction_preserves_date_until_explicit_save(inventory_api,predictor):
     client,identity,_=inventory_api
@@ -79,4 +79,99 @@ def test_timeout_allows_manual_fallback(inventory_api,predictor):
 def test_invalid_inputs_rejected(inventory_api,predictor,change):
     client,_,_=inventory_api
     assert client.post('/api/v1/items/predict-expiry',headers={'X-Household-ID':HOME},json={**payload(),**change}).status_code==422
+    predictor.post.assert_not_awaited()
+
+
+def catalogue_payload(name='Yogurt', **kwargs):
+    return dict(name=name, storage_zone='fridge', purchase_date=str(date.today()), **kwargs)
+
+
+def test_catalogue_needs_condition_and_uses_opening_date(inventory_api, predictor):
+    client, _, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    body = catalogue_payload()
+    first = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert first['predicted_expiry_date'] is None
+    assert first['food_state_options'] == ['opened', 'unopened']
+    opened = date.today() - timedelta(days=2)
+    body.update(food_state='opened', purchase_date=str(opened))
+    result = client.post('/api/v1/items/predict-expiry', headers=headers, json=body).json()
+    assert result['source'] == 'catalogue'
+    assert result['predicted_expiry_date'] == str(opened + timedelta(days=3))
+    assert result['source_url'].startswith('https://www.canada.ca/')
+    assert result['shelf_life_days'] == 3
+    predictor.post.assert_not_awaited()
+
+
+@pytest.mark.parametrize('name,state,days', [
+    ('  GREEK YOGHURT  ', 'opened', 3), ('Carrots', 'whole', 14),
+    ('blueberries', 'whole', 2), ('clementines', 'whole', 14),
+    ('chicken breast', 'raw', 2), ('chicken breast', 'cooked', 3),
+    ('ground beef', 'raw', 1), ('eggs', 'raw', 21), ('ginger root', 'whole', 14),
+])
+def test_curated_aliases_and_conditions(inventory_api, predictor, name, state, days):
+    client, _, _ = inventory_api
+    result = client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': HOME},
+                        json=catalogue_payload(name, food_state=state)).json()
+    assert result['source'] == 'catalogue'
+    assert result['predicted_expiry_date'] == str(date.today() + timedelta(days=days))
+    predictor.post.assert_not_awaited()
+
+
+@pytest.mark.parametrize('body', [
+    catalogue_payload('milk', food_state='unopened'),
+    {**catalogue_payload('yogurt', food_state='opened'), 'storage_zone': 'pantry'},
+    {**catalogue_payload('yogurt', food_state='opened'), 'storage_zone': 'freezer'},
+    catalogue_payload('chicken', food_state='whole'),
+    catalogue_payload('cooked chicken soup'), catalogue_payload('almond milk'),
+    catalogue_payload('frozen carrots'), catalogue_payload('strawberry jam'),
+])
+def test_no_guess_for_wrong_condition_zone_or_composite_food(inventory_api, predictor, body):
+    client, _, _ = inventory_api
+    result = client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': HOME}, json=body).json()
+    assert result['source'] == 'unavailable'
+    assert result['predicted_expiry_date'] is None
+    predictor.post.assert_not_awaited()
+
+
+def test_catalogue_preserves_inventory_and_rejects_other_household(inventory_api, predictor):
+    client, identity, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    row = client.post('/api/v1/items', headers=headers, json={'name': 'Carrots', 'expiry_date': '2030-01-01'}).json()
+    identity['id'] = MEMBER
+    body = catalogue_payload('carrots', food_state='whole', item_id=row['id'])
+    response = client.post('/api/v1/items/predict-expiry', headers=headers, json=body)
+    assert response.status_code == 200 and response.json()['source'] == 'catalogue'
+    assert client.get('/api/v1/items', headers=headers).json()[0]['expiry_date'] == '2030-01-01'
+    assert client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': OTHER}, json=body).status_code == 403
+    predictor.post.assert_not_awaited()
+
+
+def test_pantry_bread_and_past_estimate_are_not_shifted_to_today(inventory_api, predictor):
+    client, _, _ = inventory_api
+    start = date.today() - timedelta(days=10)
+    body = dict(name='bread', storage_zone='pantry', food_state='ready_to_eat', purchase_date=str(start))
+    result = client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': HOME}, json=body).json()
+    assert result['predicted_expiry_date'] == str(start + timedelta(days=3))
+    predictor.post.assert_not_awaited()
+
+
+def test_catalogue_data_has_unique_keys_and_sources():
+    from app.services.shelf_life_catalogue import catalogue
+    keys = set()
+    for entry in catalogue():
+        assert entry['source_url'].startswith('https://')
+        assert entry['days'] is None or 0 < entry['days'] <= 30
+        for alias in entry['aliases']:
+            key = (alias, entry['zone'], entry['state'])
+            assert key not in keys
+            keys.add(key)
+
+
+def test_ginger_pantry_uses_its_own_guidance(inventory_api, predictor):
+    client, _, _ = inventory_api
+    body = {**catalogue_payload('ginger', food_state='whole'), 'storage_zone': 'pantry'}
+    result = client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': HOME}, json=body).json()
+    assert result['shelf_life_days'] == 7
+    assert result['source_name'] == 'Iowa State University Extension'
     predictor.post.assert_not_awaited()

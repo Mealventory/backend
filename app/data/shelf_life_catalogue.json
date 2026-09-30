@@ -1,0 +1,677 @@
+{
+  "version": 1,
+  "reviewed_on": "2026-09-30",
+  "policy": "Use lower end of published ranges; weeks = 7 days. No model adjustment. Exact curated aliases only.",
+  "entries": [
+    {
+      "name": "milk",
+      "aliases": [
+        "milk",
+        "whole milk",
+        "skim milk",
+        "2% milk"
+      ],
+      "state": "opened",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "opening",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "milk",
+      "aliases": [
+        "milk",
+        "whole milk",
+        "skim milk",
+        "2% milk"
+      ],
+      "state": "unopened",
+      "days": null,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": "Use the package best-before date for unopened dairy; the guide does not specify a number of days."
+    },
+    {
+      "name": "yogurt",
+      "aliases": [
+        "yogurt",
+        "yoghurt",
+        "greek yogurt",
+        "greek yoghurt"
+      ],
+      "state": "opened",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "opening",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "yogurt",
+      "aliases": [
+        "yogurt",
+        "yoghurt",
+        "greek yogurt",
+        "greek yoghurt"
+      ],
+      "state": "unopened",
+      "days": null,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": "Use the package best-before date for unopened dairy; the guide does not specify a number of days."
+    },
+    {
+      "name": "cottage cheese",
+      "aliases": [
+        "cottage cheese"
+      ],
+      "state": "opened",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "opening",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "cottage cheese",
+      "aliases": [
+        "cottage cheese"
+      ],
+      "state": "unopened",
+      "days": null,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": "Use the package best-before date for unopened dairy; the guide does not specify a number of days."
+    },
+    {
+      "name": "chicken",
+      "aliases": [
+        "chicken",
+        "chicken breast",
+        "chicken breasts",
+        "chicken thigh",
+        "chicken thighs"
+      ],
+      "state": "raw",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "chicken",
+      "aliases": [
+        "chicken",
+        "chicken breast",
+        "chicken breasts",
+        "chicken thigh",
+        "chicken thighs"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "turkey",
+      "aliases": [
+        "turkey",
+        "turkey breast"
+      ],
+      "state": "raw",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "turkey",
+      "aliases": [
+        "turkey",
+        "turkey breast"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "beef",
+      "aliases": [
+        "beef",
+        "beef steak",
+        "steak"
+      ],
+      "state": "raw",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "beef",
+      "aliases": [
+        "beef",
+        "beef steak",
+        "steak"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "pork",
+      "aliases": [
+        "pork",
+        "pork chop",
+        "pork chops"
+      ],
+      "state": "raw",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "pork",
+      "aliases": [
+        "pork",
+        "pork chop",
+        "pork chops"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "ground beef",
+      "aliases": [
+        "ground beef",
+        "beef mince",
+        "minced beef"
+      ],
+      "state": "raw",
+      "days": 1,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "ground beef",
+      "aliases": [
+        "ground beef",
+        "beef mince",
+        "minced beef"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "ground turkey",
+      "aliases": [
+        "ground turkey",
+        "turkey mince"
+      ],
+      "state": "raw",
+      "days": 1,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "ground turkey",
+      "aliases": [
+        "ground turkey",
+        "turkey mince"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "salmon",
+      "aliases": [
+        "salmon",
+        "salmon fillet"
+      ],
+      "state": "raw",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "salmon",
+      "aliases": [
+        "salmon",
+        "salmon fillet"
+      ],
+      "state": "cooked",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "eggs",
+      "aliases": [
+        "egg",
+        "eggs"
+      ],
+      "state": "raw",
+      "days": 21,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": "Fresh eggs still in their shells."
+    },
+    {
+      "name": "eggs",
+      "aliases": [
+        "egg",
+        "eggs"
+      ],
+      "state": "cooked",
+      "days": 7,
+      "zone": "fridge",
+      "anchor": "cooking",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": "Hard-boiled eggs only; other egg dishes need their own guidance."
+    },
+    {
+      "name": "carrots",
+      "aliases": [
+        "carrot",
+        "carrots"
+      ],
+      "state": "whole",
+      "days": 14,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "celery",
+      "aliases": [
+        "celery"
+      ],
+      "state": "whole",
+      "days": 14,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "green beans",
+      "aliases": [
+        "green bean",
+        "green beans",
+        "wax bean",
+        "wax beans"
+      ],
+      "state": "whole",
+      "days": 5,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "leaf lettuce",
+      "aliases": [
+        "leaf lettuce"
+      ],
+      "state": "whole",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "iceberg lettuce",
+      "aliases": [
+        "iceberg lettuce"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://www.canada.ca/en/health-canada/services/general-food-safety-tips/safe-food-storage.html",
+      "source_name": "Health Canada",
+      "note": ""
+    },
+    {
+      "name": "avocado",
+      "aliases": [
+        "avocado",
+        "avocados"
+      ],
+      "state": "whole",
+      "days": 5,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce; ripen avocados and pears before refrigerating. Use the date first stored ripe for those fruits."
+    },
+    {
+      "name": "berries",
+      "aliases": [
+        "berry",
+        "berries",
+        "strawberry",
+        "strawberries",
+        "blueberry",
+        "blueberries",
+        "raspberry",
+        "raspberries",
+        "blackberry",
+        "blackberries"
+      ],
+      "state": "whole",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "citrus",
+      "aliases": [
+        "citrus",
+        "citrus fruit",
+        "orange",
+        "oranges",
+        "mandarin",
+        "mandarins",
+        "clementine",
+        "clementines",
+        "tangerine",
+        "tangerines",
+        "lemon",
+        "lemons",
+        "lime",
+        "limes"
+      ],
+      "state": "whole",
+      "days": 14,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "apricot",
+      "aliases": [
+        "apricot",
+        "apricots"
+      ],
+      "state": "whole",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "cherry",
+      "aliases": [
+        "cherry",
+        "cherries"
+      ],
+      "state": "whole",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "kiwi",
+      "aliases": [
+        "kiwi",
+        "kiwis",
+        "kiwifruit"
+      ],
+      "state": "whole",
+      "days": 6,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "peach",
+      "aliases": [
+        "peach",
+        "peaches"
+      ],
+      "state": "whole",
+      "days": 2,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "pear",
+      "aliases": [
+        "pear",
+        "pears"
+      ],
+      "state": "whole",
+      "days": 5,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce; ripen avocados and pears before refrigerating. Use the date first stored ripe for those fruits."
+    },
+    {
+      "name": "plum",
+      "aliases": [
+        "plum",
+        "plums"
+      ],
+      "state": "whole",
+      "days": 5,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "broccoli",
+      "aliases": [
+        "broccoli"
+      ],
+      "state": "whole",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "cauliflower",
+      "aliases": [
+        "cauliflower"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "cucumber",
+      "aliases": [
+        "cucumber",
+        "cucumbers"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "mushrooms",
+      "aliases": [
+        "mushroom",
+        "mushrooms"
+      ],
+      "state": "whole",
+      "days": 1,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "bell pepper",
+      "aliases": [
+        "bell pepper",
+        "bell peppers"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "zucchini",
+      "aliases": [
+        "zucchini",
+        "courgette",
+        "courgettes"
+      ],
+      "state": "whole",
+      "days": 3,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Whole, fresh produce only, not cut, cooked, canned or dried."
+    },
+    {
+      "name": "bread",
+      "aliases": [
+        "bread",
+        "bread loaf",
+        "bread rolls"
+      ],
+      "state": "ready_to_eat",
+      "days": 3,
+      "zone": "pantry",
+      "anchor": "purchase",
+      "source_url": "https://extension.purdue.edu/county/floyd/hhs/hhs-education-papers/food-storage-guide.pdf",
+      "source_name": "NDSU Extension, Food Storage Guide (2013)",
+      "note": "Plain bread or rolls, stored in a cool cupboard; filled breads are not covered."
+    },
+    {
+      "name": "ginger",
+      "aliases": [
+        "ginger",
+        "ginger root",
+        "fresh ginger"
+      ],
+      "state": "whole",
+      "days": 14,
+      "zone": "fridge",
+      "anchor": "purchase",
+      "source_url": "https://reallifegoodfood.umn.edu/vegetables/ginger",
+      "source_name": "University of Minnesota Extension",
+      "note": "Fresh ginger root, wrapped or bagged in the refrigerator."
+    },
+    {
+      "name": "ginger",
+      "aliases": [
+        "ginger",
+        "ginger root",
+        "fresh ginger"
+      ],
+      "state": "whole",
+      "days": 7,
+      "zone": "pantry",
+      "anchor": "purchase",
+      "source_url": "https://blogs.extension.iastate.edu/answerline/2019/03/25/how-to-store-fresh-ginger/comment-page-1/",
+      "source_name": "Iowa State University Extension",
+      "note": "Fresh, unpeeled ginger root at room temperature."
+    }
+  ]
+}
