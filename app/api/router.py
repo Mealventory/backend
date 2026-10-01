@@ -19,3 +19,6 @@ api_router.include_router(items.router, prefix="/items", tags=["Household invent
 api_router.include_router(shopping.router, prefix="/shopping", tags=["Shopping list"])
 
 api_router.include_router(health.router, prefix="/health", tags=["Health"])
+
+from app.api.v1 import notifications
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
