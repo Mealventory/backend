@@ -38,12 +38,39 @@ A checked-in copy is in the documentation repository: [openapi.json](https://git
 | POST | `/api/v1/scan/sample` | Optional development sample scan |
 | GET | `/api/v1/recipes/` | Suggest recipes from inventory |
 | POST | `/api/v1/food/predict-expiry/{food_id}` | Predict expiry |
+| PUT | `/api/v1/notifications/device` | Register/transfer this user's Expo push token |
+| POST | `/api/v1/notifications/device/remove` | Remove this user's Expo push token |
+| POST | `/api/v1/notifications/jobs/expiry` | Protected daily expiry-alert job trigger |
 
 The sample helper requires `ENABLE_SAMPLE_SCAN=true`. Keep it disabled in
 production. It requires a Supabase token and verified `X-Household-ID`; persistence
 can target only the authenticated user.
 The food predictor retains its existing response; its date attributes are not
 mapped database columns, so it must not be treated as durable date persistence.
+
+## Expiry push notification job
+
+Phones register Expo push tokens through `PUT /api/v1/notifications/device`.
+Delivery is intentionally run by an external scheduler rather than an in-process
+FastAPI timer. Configure a long random `NOTIFICATION_JOB_SECRET`, then have the
+deployment scheduler call the job once each morning:
+
+```sh
+curl -X POST "https://YOUR_BACKEND/api/v1/notifications/jobs/expiry" \
+  -H "X-Notification-Job-Secret: YOUR_LONG_RANDOM_SECRET"
+```
+
+Use `?dry_run=true` to inspect counts without contacting Expo. The job selects
+only active inventory dated today through two days from today, groups items by
+household, and sends one grouped alert to every registered device belonging to a
+current household member. Expired, undated, consumed, and discarded items are
+not included. Expo tokens reported as `DeviceNotRegistered` are removed.
+
+Mealventory does not currently store a timezone preference per user. Schedule
+the endpoint for 08:00 in the deployment's intended household/demo timezone;
+true per-user 08:00 delivery requires adding timezone data first. If Expo push
+access-token security is enabled for the EAS project, also configure
+`EXPO_PUSH_ACCESS_TOKEN`.
 
 ## Structure and tests
 
