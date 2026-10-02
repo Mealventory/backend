@@ -18,7 +18,11 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - name: Run backend tests
         run: pytest -q
-      - name: Run PostgreSQL migration/schema/RLS tests
+      - name: Run household stores migration test
         env:
           RUN_POSTGRES_TESTS: "1"
-        run: pytest -q tests/test_household_stores_migration_postgres.py tests/test_init_db_postgres.py tests/test_rls_postgres.py
+        run: pytest -q tests/test_household_stores_migration_postgres.py
+      - name: Run existing PostgreSQL schema and RLS tests
+        env:
+          RUN_POSTGRES_TESTS: "1"
+        run: pytest -q tests/test_init_db_postgres.py tests/test_rls_postgres.py
