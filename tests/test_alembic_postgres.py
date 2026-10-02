@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261002_0004"
+HEAD = "20261002_0005"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -152,6 +152,12 @@ def test_clean_database_upgrades_to_current_schema(database_url):
                     "AND indexname='idx_recipe_completions_household_created'"
                 )
             ).scalar_one() == 1
+            assert "low_stock_notified_at" in {
+                column["name"]
+                for column in inspect(connection).get_columns(
+                    "inventory_items", schema="public"
+                )
+            }
     finally:
         engine.dispose()
 
