@@ -9,6 +9,7 @@ from app.main import app
 from app.core.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.models.household_member import HouseholdMember
+from app.models.push_token import PushToken
 from app.schemas.user import UserOut
 
 OWNER = '10000000-0000-0000-0000-000000000001'
@@ -22,6 +23,7 @@ OTHER = '20000000-0000-0000-0000-000000000002'
 def inventory_api():
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     HouseholdMember.__table__.create(engine)
+    PushToken.__table__.create(engine)
     with engine.begin() as c:
         c.execute(text('''CREATE TABLE storage_locations (id text PRIMARY KEY,
             household_id text NOT NULL, zone text NOT NULL, name text, UNIQUE(household_id, name))'''))
@@ -32,6 +34,7 @@ def inventory_api():
             quantity_tracking_enabled boolean NOT NULL DEFAULT 0,
             initial_quantity numeric,
             low_stock_threshold_percent numeric NOT NULL DEFAULT 10,
+            low_stock_notified_at timestamp,
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
             created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
     with Session(engine) as db:
