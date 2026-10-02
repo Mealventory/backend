@@ -116,7 +116,11 @@ def test_low_stock_tracking_uses_persisted_reference_quantity(postgres_engine):
             quantity='2',
             unit='kg',
         ))
-        assert str(row['initial_quantity']) == '2'
+        from sqlalchemy import text
+        assert str(db.execute(
+            text('SELECT initial_quantity FROM inventory_items WHERE id=:id'),
+            {'id': row['id']},
+        ).scalar_one()) == '2.000'
         assert str(row['remaining_percent']) == '100.0'
         assert row['is_low_stock'] is False
 
