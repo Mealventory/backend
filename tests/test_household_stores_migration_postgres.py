@@ -1,7 +1,7 @@
 """Opt-in PostgreSQL test for the additive household stores migration."""
 from pathlib import Path
 
-from tests.test_init_db_postgres import database, pytestmark
+from tests.test_init_db_postgres import container, database, pytestmark
 
 MIGRATION = (
     Path(__file__).resolve().parents[1] / "scripts" / "add_household_stores.sql"
