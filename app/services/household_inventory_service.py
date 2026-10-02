@@ -5,16 +5,34 @@ Every statement is scoped to the household verified by the route dependency.
 """
 from uuid import uuid4
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import text
 from app.core.auth_errors import AuthProblem
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.unit, i.expiry_date, i.status, i.storage_location_id,
+    i.quantity, i.quantity_tracking_enabled, i.initial_quantity,
+    i.low_stock_threshold_percent, i.unit, i.expiry_date, i.status, i.storage_location_id,
     (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
         AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
     WHERE i.household_id = :household_id'''
+
+
+def _decorate_item(row):
+    item = dict(row)
+    tracked = bool(item.get('quantity_tracking_enabled'))
+    initial = item.get('initial_quantity')
+    if tracked and initial is not None and Decimal(str(initial)) > 0:
+        percent = (
+            Decimal(str(item['quantity'])) * Decimal('100') / Decimal(str(initial))
+        ).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+        item['remaining_percent'] = percent
+        item['is_low_stock'] = percent <= Decimal(str(item['low_stock_threshold_percent']))
+    else:
+        item['remaining_percent'] = None
+        item['is_low_stock'] = False
+    return item
 
 
 def list_items(db, household_id, status='active', zone=None, expiring_days=None, search=None):
@@ -30,7 +48,8 @@ def list_items(db, household_id, status='active', zone=None, expiring_days=None,
     if search:
         sql += " AND lower(f.name) LIKE :search ESCAPE '!'"
         params['search'] = '%' + search.lower().replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
-    return db.execute(text(sql + ' ORDER BY i.created_at, i.id'), params).mappings().all()
+    rows = db.execute(text(sql + ' ORDER BY i.created_at, i.id'), params).mappings().all()
+    return [_decorate_item(row) for row in rows]
 
 
 def _check_location(db, household_id, location_id):
@@ -45,7 +64,7 @@ def get_item(db, household_id, item_id):
                      dict(household_id=str(household_id), id=str(item_id))).mappings().first()
     if row is None:
         raise AuthProblem(404, 'Item not found in this household')
-    return dict(row)
+    return _decorate_item(row)
 
 
 def add_item(db, household_id, item, *, commit=True):
@@ -57,13 +76,16 @@ def add_item(db, household_id, item, *, commit=True):
             VALUES (:id, :name, :category, :unit)'''),
                    dict(id=food_id, name=item.name, category=item.category, unit=item.unit))
         db.execute(text('''INSERT INTO inventory_items
-            (id, household_id, food_id, quantity, unit, expiry_date, status, storage_location_id)
-            VALUES (:id, :household_id, :food_id, :quantity, :unit, :expiry_date, 'active', :location)'''),
+            (id, household_id, food_id, quantity, quantity_tracking_enabled, initial_quantity,
+             low_stock_threshold_percent, unit, expiry_date, status, storage_location_id)
+            VALUES (:id, :household_id, :food_id, :quantity, :tracking, :initial_quantity,
+                    :threshold, :unit, :expiry_date, 'active', :location)'''),
                    dict(id=item_id, household_id=str(household_id), food_id=food_id,
-                        quantity=str(item.quantity), unit=item.unit, expiry_date=item.expiry_date,
-                        location=location))
-        result = dict(db.execute(text(ITEM_SELECT + ' AND i.id = :id'),
-                                dict(household_id=str(household_id), id=item_id)).mappings().one())
+                        quantity=str(item.quantity), tracking=item.quantity_tracking_enabled,
+                        initial_quantity=str(item.initial_quantity) if item.initial_quantity is not None else None,
+                        threshold=str(item.low_stock_threshold_percent), unit=item.unit,
+                        expiry_date=item.expiry_date, location=location))
+        result = get_item(db, household_id, item_id)
         if commit:
             db.commit()
         return result
@@ -100,8 +122,10 @@ def update_item(db, household_id, item_id, patch):
         params = dict(id=str(item_id), household_id=str(household_id))
         # Serialize all edits against status transitions before copying catalogue data.
         lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
-        current = db.execute(text('SELECT food_id, status FROM inventory_items '
-            'WHERE id=:id AND household_id=:household_id' + lock), params).mappings().first()
+        current = db.execute(text('''SELECT food_id, status, quantity,
+            quantity_tracking_enabled, initial_quantity, low_stock_threshold_percent
+            FROM inventory_items WHERE id=:id AND household_id=:household_id''' + lock),
+            params).mappings().first()
         if current is None:
             raise AuthProblem(404, 'Item not found in this household')
         if current['status'] != 'active':
@@ -110,6 +134,24 @@ def update_item(db, household_id, item_id, patch):
                 db.commit()
                 return row
             raise AuthProblem(409, 'Only active items can be edited')
+        if 'quantity_tracking_enabled' in values:
+            if values['quantity_tracking_enabled']:
+                if values.get('initial_quantity') is None:
+                    reference = values.get('quantity', current['quantity'])
+                    values['initial_quantity'] = reference
+            else:
+                values['initial_quantity'] = None
+        elif 'initial_quantity' in values and values['initial_quantity'] is None:
+            if current['quantity_tracking_enabled']:
+                reference = values.get('quantity', current['quantity'])
+                values['initial_quantity'] = reference
+
+        tracking_after = values.get('quantity_tracking_enabled', current['quantity_tracking_enabled'])
+        initial_after = values.get('initial_quantity', current['initial_quantity'])
+        if tracking_after and initial_after is None:
+            reference = values.get('quantity', current['quantity'])
+            values['initial_quantity'] = reference
+
         if 'storage_location_id' in values:
             _check_location(db, household_id, values['storage_location_id'])
         if 'storage_zone' in values:
@@ -125,7 +167,7 @@ def update_item(db, household_id, item_id, patch):
                 db.execute(text('INSERT INTO foods (id, name, category, default_unit, avg_shelf_life_days) VALUES (:id, :name, :category, :unit, :shelf_life)'),
                            dict(id=food_id, name=name, category=category, unit=food['default_unit'], shelf_life=food['avg_shelf_life_days']))
                 values['food_id'] = food_id
-        for key in ('quantity', 'storage_location_id'):
+        for key in ('quantity', 'initial_quantity', 'low_stock_threshold_percent', 'storage_location_id'):
             if values.get(key) is not None:
                 values[key] = str(values[key])
         if values:
