@@ -1,9 +1,13 @@
 """Atomic, replay-safe deductions of explicitly reviewed pantry quantities."""
+import logging
 import hashlib
 import json
 from decimal import Decimal
 from sqlalchemy import text
 from app.core.auth_errors import AuthProblem
+from app.services.notification_service import send_low_stock_notification
+
+logger = logging.getLogger(__name__)
 
 
 def complete_recipe(db, household_id, request):
@@ -55,6 +59,14 @@ def complete_recipe(db, household_id, request):
             WHERE household_id=:household_id AND completion_id=:completion_id'''),
             dict(params, result=json.dumps(result)))
         db.commit()
+        for changed in result['items']:
+            if changed['status'] != 'active':
+                continue
+            try:
+                send_low_stock_notification(db, str(household_id), changed['item_id'])
+            except Exception:
+                db.rollback()
+                logger.exception("Low-stock notification failed after recipe completion")
         return result
     except Exception:
         db.rollback()
