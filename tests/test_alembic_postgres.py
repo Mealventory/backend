@@ -183,34 +183,40 @@ def test_followup_migration_can_downgrade_and_reapply(database_url):
 def test_existing_current_schema_can_be_checked_stamped_and_upgraded(database_url):
     engine = create_engine(database_url)
     try:
-        with engine.begin() as connection:
-            connection.exec_driver_sql((ROOT / "scripts/init_db.sql").read_text())
-            connection.exec_driver_sql(
-                """
-                DO $$ BEGIN
-                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') THEN
-                    CREATE ROLE authenticated NOLOGIN;
-                  END IF;
-                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='anon') THEN
-                    CREATE ROLE anon NOLOGIN;
-                  END IF;
-                END $$;
-                """
-            )
-            connection.exec_driver_sql(
-                (ROOT / "scripts/add_household_saved_recipes.sql").read_text()
-            )
-            connection.exec_driver_sql(
-                (ROOT / "scripts/add_recipe_completions.sql").read_text()
-            )
-            connection.execute(
-                text(
+        # The legacy SQL files own their own BEGIN/COMMIT blocks, so execute
+        # them through a DBAPI cursor rather than nesting them inside
+        # SQLAlchemy's transaction context.
+        raw = engine.raw_connection()
+        try:
+            raw.autocommit = True
+            with raw.cursor() as cursor:
+                cursor.execute((ROOT / "scripts/init_db.sql").read_text())
+                cursor.execute(
+                    """
+                    DO $ BEGIN
+                      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') THEN
+                        CREATE ROLE authenticated NOLOGIN;
+                      END IF;
+                      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='anon') THEN
+                        CREATE ROLE anon NOLOGIN;
+                      END IF;
+                    END $;
+                    """
+                )
+                cursor.execute(
+                    (ROOT / "scripts/add_household_saved_recipes.sql").read_text()
+                )
+                cursor.execute(
+                    (ROOT / "scripts/add_recipe_completions.sql").read_text()
+                )
+                cursor.execute(
                     "INSERT INTO households(id,name,created_by,invite_code) "
                     "VALUES ('00000000-0000-0000-0000-000000000001', "
                     "'Existing household', "
                     "'10000000-0000-0000-0000-000000000001', 'BASE01')"
                 )
-            )
+        finally:
+            raw.close()
     finally:
         engine.dispose()
 
