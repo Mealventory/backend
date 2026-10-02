@@ -20,6 +20,30 @@ Swagger UI: http://127.0.0.1:8000/docs
 OpenAPI: http://127.0.0.1:8000/openapi.json
 A checked-in copy is in the documentation repository: [openapi.json](https://github.com/Mealventory/docs/blob/main/openapi.json).
 
+## Database migrations
+
+Alembic owns structural database changes from Sprint 4 onward. Migration commands
+require an explicit `ALEMBIC_DATABASE_URL`; they intentionally ignore the
+application's `DATABASE_URL`. The FastAPI application does not run migrations
+at startup.
+
+For a clean database:
+
+```sh
+python -m alembic upgrade head
+```
+
+For an existing current-schema development database, first run the non-destructive
+baseline checker, then stamp the baseline before upgrading:
+
+```sh
+python scripts/check_alembic_baseline.py
+python -m alembic stamp 20261002_0001
+python -m alembic upgrade head
+```
+
+See [database migration setup, macOS/Windows commands, downgrade guidance, and PostgreSQL smoke tests](docs/database-migrations.md).
+
 ## Current API
 
 | Method | Path | Purpose |
@@ -82,9 +106,11 @@ one dependency in `app/dependencies/database.py`.
 python -m pytest tests/
 ```
 
-Tests use in-memory SQLite and mocked authentication/AI, never the configured
-live database or paid AI APIs. They cover current v1 routes, retired route 404s,
-and compare OpenAPI schemas and operation IDs against the documented contract.
+Ordinary tests use in-memory SQLite and mocked authentication/AI, never the
+configured live database or paid AI APIs. Opt-in PostgreSQL/Alembic smoke tests
+create disposable PostgreSQL 16 Docker databases and explicitly ignore
+`DATABASE_URL`. They cover current v1 routes, retired route 404s, migration
+upgrade/downgrade behavior, and OpenAPI contract checks.
 
 See [the retirement audit](https://github.com/Mealventory/docs/blob/main/legacy-retirement.md) for migration notes.
 See [household management](https://github.com/Mealventory/docs/blob/main/household-management.md) for permissions and setup.

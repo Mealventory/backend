@@ -1,3 +1,6 @@
+-- Legacy clean-database bootstrap retained for compatibility/tests.
+-- Alembic is the structural migration history for new environments; see
+-- docs/database-migrations.md.
 -- Issue #29: initial household schema for a CLEAN PostgreSQL 16 database.
 -- Intentionally fails on existing objects; never drops or overwrites live data.
 -- User UUIDs are external identity references. Supabase auth FKs and RLS are separate work.
