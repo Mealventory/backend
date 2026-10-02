@@ -159,9 +159,8 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
     for patch in [{}, {'quantity': None}, {'quantity': 0}, {'quantity': 'NaN'},
                   {'quantity': '1.0001'}, {'unit': ''}, {'unit': None},
                   {'expiry_date': '2026-02-30'}, {'status': 'invalid'},
-                  {'quantity_tracking_enabled': None}, {'low_stock_threshold_percent': 0},
-                  {'low_stock_threshold_percent': 101},
-                  {'quantity_tracking_enabled': False, 'initial_quantity': 2},
+                  {'quantity_tracking_enabled': False}, {'initial_quantity': 2},
+                  {'low_stock_threshold_percent': 5},
                   {'household_id': OTHER}]:
         assert client.patch(url, headers=headers, json=patch).status_code == 422, patch
     for items in [[], [{'name': 'Rice'}] * 101, [{'name': 'Rice'}, {'name': ''}]]:
@@ -175,19 +174,16 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
             assert client.post(url + '/' + action, headers={'X-Household-ID': home}).status_code == expected
 
 
-def test_low_stock_tracking_recalculates_and_is_household_scoped(inventory_api):
+def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(inventory_api):
     client, identity, _ = inventory_api
     headers = {'X-Household-ID': HOME}
     created = client.post('/api/v1/items', headers=headers, json={
         'name': 'Flour',
         'quantity': 2,
         'unit': 'kg',
-        'quantity_tracking_enabled': True,
-        'low_stock_threshold_percent': 10,
     })
     assert created.status_code == 201, created.text
     item = created.json()
-    assert item['quantity_tracking_enabled'] is True
     assert float(item['initial_quantity']) == 2
     assert float(item['remaining_percent']) == 100
     assert item['is_low_stock'] is False
@@ -198,21 +194,22 @@ def test_low_stock_tracking_recalculates_and_is_household_scoped(inventory_api):
     assert float(low.json()['remaining_percent']) == 10
     assert low.json()['is_low_stock'] is True
 
-    raised = client.patch(url, headers=headers, json={'low_stock_threshold_percent': 5})
-    assert raised.status_code == 200, raised.text
-    assert raised.json()['is_low_stock'] is False
+    above = client.patch(url, headers=headers, json={'quantity': 0.21})
+    assert above.status_code == 200, above.text
+    assert float(above.json()['remaining_percent']) == 10.5
+    assert above.json()['is_low_stock'] is False
+
+    # Threshold/reference configuration is internal; clients cannot override it.
+    for patch in [
+        {'quantity_tracking_enabled': False},
+        {'initial_quantity': 5},
+        {'low_stock_threshold_percent': 50},
+    ]:
+        assert client.patch(url, headers=headers, json=patch).status_code == 422
 
     identity['id'] = OUTSIDER
     assert client.get('/api/v1/items', headers={'X-Household-ID': OTHER}).json() == []
     assert client.patch(url, headers={'X-Household-ID': OTHER}, json={'quantity': 0.1}).status_code == 404
-
-    identity['id'] = OWNER
-    disabled = client.patch(url, headers=headers, json={'quantity_tracking_enabled': False})
-    assert disabled.status_code == 200, disabled.text
-    assert disabled.json()['quantity_tracking_enabled'] is False
-    assert disabled.json()['initial_quantity'] is None
-    assert disabled.json()['remaining_percent'] is None
-    assert disabled.json()['is_low_stock'] is False
 
 
 def test_discard_history_visible_to_another_member(inventory_api):
