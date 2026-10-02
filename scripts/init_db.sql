@@ -73,6 +73,7 @@ CREATE TABLE public.inventory_items (
     quantity_tracking_enabled boolean NOT NULL DEFAULT false,
     initial_quantity numeric(12,3) CHECK (initial_quantity IS NULL OR (initial_quantity > 0 AND initial_quantity <> 'NaN'::numeric)),
     low_stock_threshold_percent numeric(5,2) NOT NULL DEFAULT 10 CHECK (low_stock_threshold_percent > 0 AND low_stock_threshold_percent <= 100),
+    low_stock_notified_at timestamptz,
     unit text NOT NULL DEFAULT 'units' CHECK (btrim(unit) <> ''),
     purchase_date date,
     expiry_date date,
