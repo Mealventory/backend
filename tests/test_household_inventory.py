@@ -29,6 +29,9 @@ def inventory_api():
             category text, default_unit text NOT NULL, avg_shelf_life_days integer)'''))
         c.execute(text('''CREATE TABLE inventory_items (id text PRIMARY KEY,
             household_id text NOT NULL, food_id text NOT NULL, quantity numeric NOT NULL,
+            quantity_tracking_enabled boolean NOT NULL DEFAULT 0,
+            initial_quantity numeric,
+            low_stock_threshold_percent numeric NOT NULL DEFAULT 10,
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
             created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
     with Session(engine) as db:
@@ -155,7 +158,11 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
     url = '/api/v1/items/' + row['id']
     for patch in [{}, {'quantity': None}, {'quantity': 0}, {'quantity': 'NaN'},
                   {'quantity': '1.0001'}, {'unit': ''}, {'unit': None},
-                  {'expiry_date': '2026-02-30'}, {'status': 'invalid'}, {'household_id': OTHER}]:
+                  {'expiry_date': '2026-02-30'}, {'status': 'invalid'},
+                  {'quantity_tracking_enabled': None}, {'low_stock_threshold_percent': 0},
+                  {'low_stock_threshold_percent': 101},
+                  {'quantity_tracking_enabled': False, 'initial_quantity': 2},
+                  {'household_id': OTHER}]:
         assert client.patch(url, headers=headers, json=patch).status_code == 422, patch
     for items in [[], [{'name': 'Rice'}] * 101, [{'name': 'Rice'}, {'name': ''}]]:
         assert client.post('/api/v1/items/batch', headers=headers, json=items).status_code == 422
@@ -166,6 +173,46 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
         assert client.patch(url, headers={'X-Household-ID': home}, json={'quantity': 4}).status_code == expected
         for action in ['consume', 'discard']:
             assert client.post(url + '/' + action, headers={'X-Household-ID': home}).status_code == expected
+
+
+def test_low_stock_tracking_recalculates_and_is_household_scoped(inventory_api):
+    client, identity, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    created = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Flour',
+        'quantity': 2,
+        'unit': 'kg',
+        'quantity_tracking_enabled': True,
+        'low_stock_threshold_percent': 10,
+    })
+    assert created.status_code == 201, created.text
+    item = created.json()
+    assert item['quantity_tracking_enabled'] is True
+    assert float(item['initial_quantity']) == 2
+    assert float(item['remaining_percent']) == 100
+    assert item['is_low_stock'] is False
+
+    url = '/api/v1/items/' + item['id']
+    low = client.patch(url, headers=headers, json={'quantity': 0.2})
+    assert low.status_code == 200, low.text
+    assert float(low.json()['remaining_percent']) == 10
+    assert low.json()['is_low_stock'] is True
+
+    raised = client.patch(url, headers=headers, json={'low_stock_threshold_percent': 5})
+    assert raised.status_code == 200, raised.text
+    assert raised.json()['is_low_stock'] is False
+
+    identity['id'] = OUTSIDER
+    assert client.get('/api/v1/items', headers={'X-Household-ID': OTHER}).json() == []
+    assert client.patch(url, headers={'X-Household-ID': OTHER}, json={'quantity': 0.1}).status_code == 404
+
+    identity['id'] = OWNER
+    disabled = client.patch(url, headers=headers, json={'quantity_tracking_enabled': False})
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()['quantity_tracking_enabled'] is False
+    assert disabled.json()['initial_quantity'] is None
+    assert disabled.json()['remaining_percent'] is None
+    assert disabled.json()['is_low_stock'] is False
 
 
 def test_discard_history_visible_to_another_member(inventory_api):
