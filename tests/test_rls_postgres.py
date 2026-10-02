@@ -8,7 +8,7 @@ B='10000000-0000-0000-0000-000000000002'
 H1='00000000-0000-0000-0000-000000000001'
 H2='00000000-0000-0000-0000-000000000002'
 RLS=(Path(__file__).resolve().parents[1]/'scripts/enable_rls.sql').read_text()
-TENANT=['households','household_members','storage_locations','inventory_items','recipes','recipe_ingredients','shopping_list_items']
+TENANT=['households','household_members','storage_locations','inventory_items','recipes','recipe_ingredients','shopping_list_items','household_stores']
 MUTABLE=TENANT[2:]
 
 @pytest.fixture
@@ -33,6 +33,7 @@ def secured(schema):
     INSERT INTO recipe_ingredients(household_id,recipe_id,food_id,quantity)
       SELECT '{H2}',r.id,f.id,1 FROM recipes r CROSS JOIN foods f WHERE r.household_id='{H2}';
     INSERT INTO shopping_list_items(household_id,name) VALUES ('{H2}','Other bread');
+    INSERT INTO household_stores(household_id,name,website_url,sort_order) VALUES ('{H2}','Other store','https://example.com',0);
     INSERT INTO device_push_tokens(user_id,token,platform) VALUES ('{B}','other-token','android');
     """)
     schema(RLS)
@@ -61,6 +62,7 @@ def test_cross_tenant_update_delete_and_move(secured,table):
  ('recipes','name',"'New'"),
  ('recipe_ingredients','recipe_id,food_id,quantity',"'40000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',1"),
  ('shopping_list_items','name',"'New'"),
+ ('household_stores','name',"'New store'"),
 ])
 def test_insert_checks_and_own_delete(secured,table,columns,values):
     assert 'row-level security' in as_user(secured,f"INSERT INTO {table}(household_id,{columns}) VALUES ('{H2}',{values})",ok=False).stderr
@@ -105,7 +107,7 @@ def test_device_ownership_and_global_catalogue(secured):
     assert as_user(secured,"DELETE FROM device_push_tokens WHERE token='new' RETURNING token").stdout.strip()=='new'
 
 def test_rls_configuration_and_transactional_rerun(secured):
-    assert secured("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relrowsecurity").stdout.strip()=='9'
+    assert secured("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r' AND relrowsecurity").stdout.strip()=='10'
     assert secured("SELECT prosecdef AND 'search_path=\"\"'=ANY(proconfig) FROM pg_proc WHERE proname='is_household_member'").stdout.strip()=='t'
     secured(RLS,ok=False)
     assert as_user(secured,'SELECT count(*) FROM household_members').stdout.strip()=='1'
