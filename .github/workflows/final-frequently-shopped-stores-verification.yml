@@ -1,0 +1,26 @@
+name: Final frequently shopped stores verification
+
+on:
+  push:
+    branches:
+      - feat/frequently-shopped-stores
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - name: Compile app
+        run: python -m compileall -q app
+      - name: Run backend tests
+        run: pytest -q
+      - name: Run existing PostgreSQL schema and RLS tests
+        env:
+          RUN_POSTGRES_TESTS: "1"
+        run: pytest -q tests/test_init_db_postgres.py tests/test_rls_postgres.py
