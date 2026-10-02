@@ -1,5 +1,6 @@
 from datetime import date
 from pydantic import SecretStr
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -8,6 +9,7 @@ from app.services.notification_service import (
     PushDeliveryResult,
     run_expiry_notification_job,
     send_expo_push,
+    send_low_stock_notification,
 )
 from tests.test_household_inventory import (
     HOME,
@@ -234,3 +236,83 @@ def test_job_endpoint_requires_configured_secret_and_supports_dry_run(
         "/api/v1/notifications/jobs/expiry?dry_run=true",
         headers={"X-Notification-Job-Secret": "cron-secret"},
     ).status_code == 503
+
+
+def test_low_stock_push_sends_once_until_item_is_restocked(inventory_api):
+    client, _, engine = inventory_api
+    flour = client.post(
+        "/api/v1/items",
+        headers={"X-Household-ID": HOME},
+        json={"name": "Flour", "quantity": 10, "unit": "kg"},
+    ).json()
+
+    with Session(engine) as db:
+        db.add_all(
+            [
+                PushToken(
+                    user_id=OWNER,
+                    token="ExpoPushToken[owner-low-stock]",
+                    platform="ios",
+                ),
+                PushToken(
+                    user_id=MEMBER,
+                    token="ExpoPushToken[member-low-stock]",
+                    platform="android",
+                ),
+            ]
+        )
+        db.execute(
+            text(
+                "UPDATE inventory_items SET quantity=1 WHERE id=:id"
+            ),
+            {"id": flour["id"]},
+        )
+        db.commit()
+
+        sent = []
+
+        def sender(messages):
+            sent.extend(messages)
+            return PushDeliveryResult(accepted=len(messages), rejected=0)
+
+        first = send_low_stock_notification(
+            db, HOME, flour["id"], sender=sender
+        )
+        assert first["low_stock"] is True
+        assert first["notifications_attempted"] == 2
+        assert first["accepted"] == 2
+        assert len(sent) == 2
+        assert all(m["title"] == "Mealventory low-stock alert" for m in sent)
+        assert all("Flour is running low" in m["body"] for m in sent)
+        assert all(m["data"]["type"] == "low_stock_alert" for m in sent)
+
+        second = send_low_stock_notification(
+            db, HOME, flour["id"], sender=sender
+        )
+        assert second["notifications_attempted"] == 0
+        assert len(sent) == 2
+
+        db.execute(
+            text(
+                "UPDATE inventory_items SET quantity=5 WHERE id=:id"
+            ),
+            {"id": flour["id"]},
+        )
+        db.commit()
+        reset = send_low_stock_notification(
+            db, HOME, flour["id"], sender=sender
+        )
+        assert reset["low_stock"] is False
+
+        db.execute(
+            text(
+                "UPDATE inventory_items SET quantity=1 WHERE id=:id"
+            ),
+            {"id": flour["id"]},
+        )
+        db.commit()
+        third = send_low_stock_notification(
+            db, HOME, flour["id"], sender=sender
+        )
+        assert third["notifications_attempted"] == 2
+        assert len(sent) == 4

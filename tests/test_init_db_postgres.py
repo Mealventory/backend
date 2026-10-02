@@ -102,7 +102,7 @@ def test_creates_all_tables_enums_and_required_indices(schema):
 
 def test_defaults_and_full_relational_graph(schema):
     schema(SEED)
-    assert schema('SELECT status,quantity,unit FROM inventory_items').stdout.strip()=='active|1.000|units'
+    assert schema('SELECT status,quantity,quantity_tracking_enabled,initial_quantity,low_stock_threshold_percent,unit FROM inventory_items').stdout.strip()=='active|1.000|f||10.00|units'
     assert schema("SELECT count(*) FROM households WHERE created_at IS NOT NULL AND updated_at IS NOT NULL").stdout.strip()=='2'
     assert schema("INSERT INTO foods(name) VALUES ('Eggs') RETURNING id IS NOT NULL").stdout.strip()=='t'
 
@@ -128,6 +128,10 @@ def test_foreign_keys_reject_invalid_links(schema,table,assignment):
 @pytest.mark.parametrize('statement',[
  "UPDATE inventory_items SET quantity=-1",
  "UPDATE inventory_items SET quantity='NaN'",
+ "UPDATE inventory_items SET initial_quantity=0",
+ "UPDATE inventory_items SET low_stock_threshold_percent=0",
+ "UPDATE inventory_items SET low_stock_threshold_percent=101",
+ "UPDATE inventory_items SET quantity_tracking_enabled=true, initial_quantity=NULL",
  "UPDATE shopping_list_items SET quantity=0",
  "UPDATE recipe_ingredients SET quantity=-1",
  "UPDATE households SET invite_code='bad'",

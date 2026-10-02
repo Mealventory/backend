@@ -62,6 +62,8 @@ class ItemOut(BaseModel):
     name: str
     category: str | None
     quantity: Decimal
+    remaining_percent: Decimal | None = None
+    is_low_stock: bool = False
     unit: str
     expiry_date: date | None
     status: ItemStatus

@@ -96,3 +96,36 @@ def test_terminal_item_and_new_meal(meal_api):
     request['completion_id'] = 'third-meal-request-12345'
     request['items'][0]['expected_quantity'] = '1'
     assert submit(client, request).status_code == 409
+
+
+def test_recipe_use_automatically_triggers_low_stock_at_ten_percent(meal_api, monkeypatch):
+    client, _, _ = meal_api
+    notifications = []
+    monkeypatch.setattr(
+        "app.services.recipe_completion_service.send_low_stock_notification",
+        lambda db, household_id, item_id: notifications.append(
+            (str(household_id), str(item_id))
+        ),
+    )
+    flour = pantry(client, 'Flour', 10, 'cups')
+    request = {
+        'completion_id': 'low-stock-meal-request-12345',
+        'recipe_id': 'bread',
+        'recipe_name': 'Bread',
+        'items': [{
+            'item_id': flour['id'],
+            'quantity': '9',
+            'expected_quantity': flour['quantity'],
+            'unit': flour['unit'],
+        }],
+    }
+
+    completed = submit(client, request)
+    assert completed.status_code == 200, completed.text
+
+    active = client.get('/api/v1/items', headers={'X-Household-ID': HOME}).json()
+    updated = next(item for item in active if item['id'] == flour['id'])
+    assert updated['quantity'] == '1'
+    assert float(updated['remaining_percent']) == 10
+    assert updated['is_low_stock'] is True
+    assert notifications == [(HOME, flour['id'])]

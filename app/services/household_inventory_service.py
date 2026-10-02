@@ -3,18 +3,40 @@
 The old per-user inventory routes remain separate for existing clients.
 Every statement is scoped to the household verified by the route dependency.
 """
+import logging
 from uuid import uuid4
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import text
 from app.core.auth_errors import AuthProblem
+from app.services.notification_service import send_low_stock_notification
+
+logger = logging.getLogger(__name__)
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.unit, i.expiry_date, i.status, i.storage_location_id,
+    i.quantity, i.initial_quantity, i.unit, i.expiry_date, i.status, i.storage_location_id,
     (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
         AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
     WHERE i.household_id = :household_id'''
+
+
+def _decorate_item(row):
+    item = dict(row)
+    initial = item.get('initial_quantity')
+    if initial is not None and Decimal(str(initial)) > 0:
+        percent = (
+            Decimal(str(item['quantity'])) * Decimal('100') / Decimal(str(initial))
+        ).quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)
+        # A correction/restock can temporarily exceed the original amount;
+        # user-facing "remaining" should never read above 100%.
+        item['remaining_percent'] = min(percent, Decimal('100.0'))
+        item['is_low_stock'] = percent <= Decimal('10')
+    else:
+        item['remaining_percent'] = None
+        item['is_low_stock'] = False
+    return item
 
 
 def list_items(db, household_id, status='active', zone=None, expiring_days=None, search=None):
@@ -30,7 +52,8 @@ def list_items(db, household_id, status='active', zone=None, expiring_days=None,
     if search:
         sql += " AND lower(f.name) LIKE :search ESCAPE '!'"
         params['search'] = '%' + search.lower().replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
-    return db.execute(text(sql + ' ORDER BY i.created_at, i.id'), params).mappings().all()
+    rows = db.execute(text(sql + ' ORDER BY i.created_at, i.id'), params).mappings().all()
+    return [_decorate_item(row) for row in rows]
 
 
 def _check_location(db, household_id, location_id):
@@ -45,7 +68,7 @@ def get_item(db, household_id, item_id):
                      dict(household_id=str(household_id), id=str(item_id))).mappings().first()
     if row is None:
         raise AuthProblem(404, 'Item not found in this household')
-    return dict(row)
+    return _decorate_item(row)
 
 
 def add_item(db, household_id, item, *, commit=True):
@@ -57,13 +80,16 @@ def add_item(db, household_id, item, *, commit=True):
             VALUES (:id, :name, :category, :unit)'''),
                    dict(id=food_id, name=item.name, category=item.category, unit=item.unit))
         db.execute(text('''INSERT INTO inventory_items
-            (id, household_id, food_id, quantity, unit, expiry_date, status, storage_location_id)
-            VALUES (:id, :household_id, :food_id, :quantity, :unit, :expiry_date, 'active', :location)'''),
+            (id, household_id, food_id, quantity, quantity_tracking_enabled, initial_quantity,
+             low_stock_threshold_percent, unit, expiry_date, status, storage_location_id)
+            VALUES (:id, :household_id, :food_id, :quantity, :tracking, :initial_quantity,
+                    :threshold, :unit, :expiry_date, 'active', :location)'''),
                    dict(id=item_id, household_id=str(household_id), food_id=food_id,
-                        quantity=str(item.quantity), unit=item.unit, expiry_date=item.expiry_date,
-                        location=location))
-        result = dict(db.execute(text(ITEM_SELECT + ' AND i.id = :id'),
-                                dict(household_id=str(household_id), id=item_id)).mappings().one())
+                        quantity=str(item.quantity), tracking=True,
+                        initial_quantity=str(item.quantity),
+                        threshold='10', unit=item.unit,
+                        expiry_date=item.expiry_date, location=location))
+        result = get_item(db, household_id, item_id)
         if commit:
             db.commit()
         return result
@@ -100,8 +126,9 @@ def update_item(db, household_id, item_id, patch):
         params = dict(id=str(item_id), household_id=str(household_id))
         # Serialize all edits against status transitions before copying catalogue data.
         lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
-        current = db.execute(text('SELECT food_id, status FROM inventory_items '
-            'WHERE id=:id AND household_id=:household_id' + lock), params).mappings().first()
+        current = db.execute(text('''SELECT food_id, status
+            FROM inventory_items WHERE id=:id AND household_id=:household_id''' + lock),
+            params).mappings().first()
         if current is None:
             raise AuthProblem(404, 'Item not found in this household')
         if current['status'] != 'active':
@@ -134,7 +161,14 @@ def update_item(db, household_id, item_id, patch):
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
+        quantity_changed = 'quantity' in values
         db.commit()
+        if quantity_changed:
+            try:
+                send_low_stock_notification(db, str(household_id), str(item_id))
+            except Exception:
+                db.rollback()
+                logger.exception("Low-stock notification failed after inventory update")
         return row
     except Exception:
         db.rollback()
