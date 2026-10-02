@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261002_0002"
+HEAD = "20261002_0003"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -190,24 +190,13 @@ def test_existing_current_schema_can_be_checked_stamped_and_upgraded(database_ur
         try:
             raw.autocommit = True
             with raw.cursor() as cursor:
-                cursor.execute((ROOT / "scripts/init_db.sql").read_text())
                 cursor.execute(
-                    """
-                    DO $ BEGIN
-                      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='authenticated') THEN
-                        CREATE ROLE authenticated NOLOGIN;
-                      END IF;
-                      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='anon') THEN
-                        CREATE ROLE anon NOLOGIN;
-                      END IF;
-                    END $;
-                    """
-                )
-                cursor.execute(
-                    (ROOT / "scripts/add_household_saved_recipes.sql").read_text()
-                )
-                cursor.execute(
-                    (ROOT / "scripts/add_recipe_completions.sql").read_text()
+                    (
+                        ROOT
+                        / "alembic"
+                        / "sql"
+                        / "20261002_0001_current_household_baseline.sql"
+                    ).read_text()
                 )
                 cursor.execute(
                     "INSERT INTO households(id,name,created_by,invite_code) "
