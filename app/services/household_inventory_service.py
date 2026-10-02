@@ -3,11 +3,15 @@
 The old per-user inventory routes remain separate for existing clients.
 Every statement is scoped to the household verified by the route dependency.
 """
+import logging
 from uuid import uuid4
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import text
 from app.core.auth_errors import AuthProblem
+from app.services.notification_service import send_low_stock_notification
+
+logger = logging.getLogger(__name__)
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
@@ -157,7 +161,14 @@ def update_item(db, household_id, item_id, patch):
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
+        quantity_changed = 'quantity' in values
         db.commit()
+        if quantity_changed:
+            try:
+                send_low_stock_notification(db, str(household_id), str(item_id))
+            except Exception:
+                db.rollback()
+                logger.exception("Low-stock notification failed after inventory update")
         return row
     except Exception:
         db.rollback()
