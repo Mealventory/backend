@@ -115,8 +115,6 @@ def test_low_stock_tracking_uses_persisted_reference_quantity(postgres_engine):
             name='Flour',
             quantity='2',
             unit='kg',
-            quantity_tracking_enabled=True,
-            low_stock_threshold_percent='10',
         ))
         assert str(row['initial_quantity']) == '2'
         assert str(row['remaining_percent']) == '100.0'
