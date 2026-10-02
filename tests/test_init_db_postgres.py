@@ -159,7 +159,7 @@ def test_rerun_fails_without_destroying_data(schema):
     schema(SEED)
     schema(MIGRATION.read_text(),ok=False)
     assert schema('SELECT count(*) FROM households').stdout.strip()=='2'
-    assert schema("SELECT count(*) FROM pg_tables WHERE schemaname='public'").stdout.strip()=='9'
+    assert schema("SELECT count(*) FROM pg_tables WHERE schemaname='public'").stdout.strip()=='10'
 
 
 def test_mid_migration_failure_rolls_back(database):
