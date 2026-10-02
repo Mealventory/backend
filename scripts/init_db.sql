@@ -70,6 +70,9 @@ CREATE TABLE public.inventory_items (
     food_id uuid NOT NULL REFERENCES public.foods(id),
     storage_location_id uuid,
     quantity numeric(12,3) NOT NULL DEFAULT 1 CHECK (quantity >= 0 AND quantity <> 'NaN'::numeric),
+    quantity_tracking_enabled boolean NOT NULL DEFAULT false,
+    initial_quantity numeric(12,3) CHECK (initial_quantity IS NULL OR (initial_quantity > 0 AND initial_quantity <> 'NaN'::numeric)),
+    low_stock_threshold_percent numeric(5,2) NOT NULL DEFAULT 10 CHECK (low_stock_threshold_percent > 0 AND low_stock_threshold_percent <= 100),
     unit text NOT NULL DEFAULT 'units' CHECK (btrim(unit) <> ''),
     purchase_date date,
     expiry_date date,
@@ -77,7 +80,8 @@ CREATE TABLE public.inventory_items (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     FOREIGN KEY (household_id, storage_location_id)
-        REFERENCES public.storage_locations(household_id, id)
+        REFERENCES public.storage_locations(household_id, id),
+    CHECK (NOT quantity_tracking_enabled OR initial_quantity IS NOT NULL)
 );
 CREATE INDEX idx_inventory_tenant ON public.inventory_items (household_id, status, expiry_date);
 CREATE INDEX idx_inventory_food ON public.inventory_items (food_id);
