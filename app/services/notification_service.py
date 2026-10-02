@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Callable, Iterable, Sequence
 
 import httpx
@@ -153,6 +154,130 @@ def _tokens_for_household(db: Session, household_id: str) -> list[str]:
         .distinct()
         .all()
     ]
+
+
+def send_low_stock_notification(
+    db: Session,
+    household_id: str,
+    item_id: str,
+    *,
+    sender: Callable[[Sequence[dict]], PushDeliveryResult] = send_expo_push,
+) -> dict[str, int | bool]:
+    """Send one push per household device when an item enters a low-stock episode.
+
+    The alert is best-effort and deduplicated with inventory_items.low_stock_notified_at.
+    Restocking above 10% clears that marker so a later low-stock episode can notify again.
+    """
+    params = {"household_id": str(household_id), "item_id": str(item_id)}
+    row = db.execute(
+        text(
+            """SELECT i.quantity, i.initial_quantity, i.low_stock_notified_at, f.name
+               FROM inventory_items i
+               JOIN foods f ON f.id = i.food_id
+               WHERE i.household_id = :household_id
+                 AND i.id = :item_id
+                 AND i.status = 'active'"""
+        ),
+        params,
+    ).mappings().first()
+
+    empty = {
+        "low_stock": False,
+        "notifications_attempted": 0,
+        "accepted": 0,
+        "rejected": 0,
+        "stale_tokens_removed": 0,
+    }
+    if row is None or row["initial_quantity"] is None:
+        return empty
+
+    initial = Decimal(str(row["initial_quantity"]))
+    if initial <= 0:
+        return empty
+
+    percent = (
+        Decimal(str(row["quantity"])) * Decimal("100") / initial
+    ).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    low_stock = percent <= Decimal("10")
+
+    if not low_stock:
+        if row["low_stock_notified_at"] is not None:
+            db.execute(
+                text(
+                    """UPDATE inventory_items
+                       SET low_stock_notified_at = NULL
+                       WHERE household_id = :household_id AND id = :item_id"""
+                ),
+                params,
+            )
+            db.commit()
+        return empty
+
+    if row["low_stock_notified_at"] is not None:
+        return {**empty, "low_stock": True}
+
+    tokens = _tokens_for_household(db, str(household_id))
+    if not tokens:
+        return {**empty, "low_stock": True}
+
+    shown_percent = max(Decimal("0"), percent)
+    body = f"{row['name']} is running low — {shown_percent}% remaining."
+    messages = [
+        {
+            "to": token,
+            "title": "Mealventory low-stock alert",
+            "body": body,
+            "sound": "default",
+            "data": {
+                "type": "low_stock_alert",
+                "household_id": str(household_id),
+                "item_id": str(item_id),
+                "screen": "inventory",
+            },
+        }
+        for token in tokens
+    ]
+
+    try:
+        result = sender(messages)
+    except PushDeliveryError:
+        db.rollback()
+        return {
+            "low_stock": True,
+            "notifications_attempted": len(messages),
+            "accepted": 0,
+            "rejected": len(messages),
+            "stale_tokens_removed": 0,
+        }
+
+    removed = 0
+    if result.stale_tokens:
+        removed = (
+            db.query(PushToken)
+            .filter(PushToken.token.in_(result.stale_tokens))
+            .delete(synchronize_session=False)
+        )
+
+    if result.accepted > 0:
+        db.execute(
+            text(
+                """UPDATE inventory_items
+                   SET low_stock_notified_at = CURRENT_TIMESTAMP
+                   WHERE household_id = :household_id AND id = :item_id"""
+            ),
+            params,
+        )
+
+    if removed or result.accepted > 0:
+        db.commit()
+
+    return {
+        "low_stock": True,
+        "notifications_attempted": len(messages),
+        "accepted": result.accepted,
+        "rejected": result.rejected,
+        "stale_tokens_removed": removed,
+    }
 
 
 def run_expiry_notification_job(
