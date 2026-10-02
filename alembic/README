@@ -1,0 +1,8 @@
+Mealventory database migrations
+
+Revision files under versions/ are immutable history. New database changes
+must be added as a new revision rather than editing an applied revision.
+
+The baseline SQL snapshot under sql/ is intentionally frozen at the point
+Alembic was introduced. See docs/database-migrations.md for clean installs,
+existing-database stamping, upgrade/downgrade commands, and safety rules.
