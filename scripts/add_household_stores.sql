@@ -2,6 +2,34 @@
 -- Run as the same trusted database owner used for the initial schema/RLS setup.
 BEGIN;
 
+-- Existing Mealventory databases may predate the shared RLS helper used by
+-- newer schema installs. Create/refresh it here so this migration is standalone.
+CREATE SCHEMA IF NOT EXISTS mealventory_private;
+REVOKE ALL ON SCHEMA mealventory_private FROM PUBLIC, anon, authenticated;
+GRANT USAGE ON SCHEMA mealventory_private TO authenticated;
+
+CREATE OR REPLACE FUNCTION mealventory_private.is_household_member(
+    _user_id uuid,
+    _household_id uuid
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $
+    SELECT _user_id = (SELECT auth.uid()) AND EXISTS (
+        SELECT 1
+        FROM public.household_members
+        WHERE user_id = _user_id
+          AND household_id = _household_id
+    );
+$;
+REVOKE ALL ON FUNCTION mealventory_private.is_household_member(uuid, uuid)
+    FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION mealventory_private.is_household_member(uuid, uuid)
+    TO authenticated;
+
 CREATE TABLE IF NOT EXISTS public.household_stores (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
