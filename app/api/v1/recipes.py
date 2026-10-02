@@ -38,3 +38,13 @@ def save_household_recipe(recipe: RecipeSnapshot, household_id: UUID = Depends(g
 @router.post('/saved/remove', status_code=204)
 def remove_household_recipe(recipe: RecipeSnapshot, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
     saved_recipe_service.remove(db, household_id, recipe)
+
+
+from app.schemas.recipe_completion import RecipeCompletion
+from app.services.recipe_completion_service import complete_recipe
+
+
+@router.post('/complete')
+def finish_recipe(request: RecipeCompletion, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+    """Atomically deduct reviewed ingredients; reuse completion_id for retries."""
+    return complete_recipe(db, household_id, request)
