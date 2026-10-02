@@ -1,5 +1,6 @@
 from datetime import date
 from pydantic import SecretStr
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -261,7 +262,7 @@ def test_low_stock_push_sends_once_until_item_is_restocked(inventory_api):
             ]
         )
         db.execute(
-            __import__("sqlalchemy").text(
+            text(
                 "UPDATE inventory_items SET quantity=1 WHERE id=:id"
             ),
             {"id": flour["id"]},
@@ -292,7 +293,7 @@ def test_low_stock_push_sends_once_until_item_is_restocked(inventory_api):
         assert len(sent) == 2
 
         db.execute(
-            __import__("sqlalchemy").text(
+            text(
                 "UPDATE inventory_items SET quantity=5 WHERE id=:id"
             ),
             {"id": flour["id"]},
@@ -304,7 +305,7 @@ def test_low_stock_push_sends_once_until_item_is_restocked(inventory_api):
         assert reset["low_stock"] is False
 
         db.execute(
-            __import__("sqlalchemy").text(
+            text(
                 "UPDATE inventory_items SET quantity=1 WHERE id=:id"
             ),
             {"id": flour["id"]},
