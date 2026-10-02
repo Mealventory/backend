@@ -17,14 +17,14 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = ''
-AS $
+AS $body$
     SELECT _user_id = (SELECT auth.uid()) AND EXISTS (
         SELECT 1
         FROM public.household_members
         WHERE user_id = _user_id
           AND household_id = _household_id
     );
-$;
+$body$;
 REVOKE ALL ON FUNCTION mealventory_private.is_household_member(uuid, uuid)
     FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION mealventory_private.is_household_member(uuid, uuid)
