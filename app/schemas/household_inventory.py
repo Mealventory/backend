@@ -62,7 +62,6 @@ class ItemOut(BaseModel):
     name: str
     category: str | None
     quantity: Decimal
-    initial_quantity: Decimal | None = None
     remaining_percent: Decimal | None = None
     is_low_stock: bool = False
     unit: str
