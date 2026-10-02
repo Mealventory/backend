@@ -125,6 +125,17 @@ CREATE TABLE public.shopping_list_items (
 CREATE INDEX idx_shopping_tenant ON public.shopping_list_items (household_id, is_checked);
 CREATE INDEX idx_shopping_food ON public.shopping_list_items (food_id);
 
+CREATE TABLE public.household_stores (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    name text NOT NULL CHECK (btrim(name) <> ''),
+    website_url text CHECK (website_url IS NULL OR website_url ~* '^https?://'),
+    sort_order integer NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_household_stores_order ON public.household_stores (household_id, sort_order, created_at, id);
+
 -- Device registrations belong to users, who may belong to multiple households.
 CREATE TABLE public.device_push_tokens (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -151,6 +162,8 @@ CREATE TRIGGER recipes_updated_at BEFORE UPDATE ON public.recipes
 CREATE TRIGGER recipe_ingredients_updated_at BEFORE UPDATE ON public.recipe_ingredients
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER shopping_list_items_updated_at BEFORE UPDATE ON public.shopping_list_items
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER household_stores_updated_at BEFORE UPDATE ON public.household_stores
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER device_push_tokens_updated_at BEFORE UPDATE ON public.device_push_tokens
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.core.auth_errors import AUTH_RESPONSES
 from app.api.v1 import inventory, scan, recipes, users, households
 from app.api.v1 import food, health
-from app.api.v1 import items, shopping
+from app.api.v1 import items, shopping, stores
 
 
 api_router = APIRouter(prefix="/api/v1", responses=AUTH_RESPONSES)
@@ -17,6 +17,7 @@ api_router.include_router(households.router, prefix="/households", tags=["Househ
 api_router.include_router(items.router, prefix="/items", tags=["Household inventory"])
 
 api_router.include_router(shopping.router, prefix="/shopping", tags=["Shopping list"])
+api_router.include_router(stores.router, prefix="/stores", tags=["Household stores"])
 
 api_router.include_router(health.router, prefix="/health", tags=["Health"])
 
