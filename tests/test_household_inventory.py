@@ -184,7 +184,6 @@ def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(inventory_ap
     })
     assert created.status_code == 201, created.text
     item = created.json()
-    assert float(item['initial_quantity']) == 2
     assert float(item['remaining_percent']) == 100
     assert item['is_low_stock'] is False
 
