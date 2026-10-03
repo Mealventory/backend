@@ -38,7 +38,6 @@ def _add_item(client, household, name, expiry_date, *, identity=None, user=None)
 
 def test_expiry_job_groups_active_items_and_targets_household_members(inventory_api):
     client, identity, engine = inventory_api
-    PushToken.__table__.create(engine)
 
     _add_item(client, HOME, "Yogurt", "2026-10-01")
     _add_item(client, HOME, "Milk", "2026-10-02")
@@ -121,7 +120,6 @@ def test_expiry_job_groups_active_items_and_targets_household_members(inventory_
 
 def test_expiry_job_removes_only_tokens_reported_device_not_registered(inventory_api):
     client, _, engine = inventory_api
-    PushToken.__table__.create(engine)
     _add_item(client, HOME, "Milk", "2026-10-02")
 
     stale = "ExpoPushToken[stale-phone]"
@@ -154,7 +152,6 @@ def test_expiry_job_removes_only_tokens_reported_device_not_registered(inventory
 
 def test_expiry_job_dry_run_never_contacts_expo(inventory_api):
     client, _, engine = inventory_api
-    PushToken.__table__.create(engine)
     _add_item(client, HOME, "Milk", "2026-10-02")
 
     with Session(engine) as db:

@@ -112,6 +112,14 @@ create disposable PostgreSQL 16 Docker databases and explicitly ignore
 `DATABASE_URL`. They cover current v1 routes, retired route 404s, migration
 upgrade/downgrade behavior, and OpenAPI contract checks.
 
+## Continuous integration
+
+GitHub Actions runs `.github/workflows/backend-ci.yml` for every pull request and every push to `main`. The required CI path uses Python 3.11, installs `requirements-dev.txt`, runs the ordinary offline pytest suite, repeats the OpenAPI contract regression test with a focused log, and verifies that the backend Docker image builds.
+
+The normal CI jobs do not use production credentials, Supabase production access, Google APIs, paid AI providers, or the shared database. The test fixtures provide local/mocked configuration only.
+
+PostgreSQL integration tests are intentionally opt-in because they start disposable Docker infrastructure. To run them in GitHub Actions, open **Actions -> Backend CI -> Run workflow**, enable **Run the disposable PostgreSQL integration suite**, and start the workflow. That job sets only `RUN_POSTGRES_TESTS=1`; the tests create temporary PostgreSQL 16 containers with generated local credentials and explicitly avoid `DATABASE_URL`.
+
 See [the retirement audit](https://github.com/Mealventory/docs/blob/main/legacy-retirement.md) for migration notes.
 See [household management](https://github.com/Mealventory/docs/blob/main/household-management.md) for permissions and setup.
 Shared inventory and analytics remain separate features;
