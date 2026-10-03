@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator, BeforeValida
 
 ItemStatus = Literal['active', 'consumed', 'discarded']
 
+
 def validate_image_ref(value):
     if not isinstance(value, str):
         raise ValueError('Image reference must be a string')
@@ -23,7 +24,9 @@ def validate_image_ref(value):
         raise ValueError('Invalid private image storage path')
     return value
 
+
 ImageRef = Annotated[str, BeforeValidator(validate_image_ref)]
+
 
 def validate_storage_zone(value):
     if value not in ('pantry', 'fridge', 'freezer', 'spicerack'):
@@ -43,7 +46,6 @@ class ItemCreate(BaseModel):
     unit: str = Field(default='units', min_length=1, max_length=80)
     expiry_date: date | None = None
     storage_location_id: UUID | None = None
-
     storage_zone: StorageZone = 'pantry'
     image_ref: ImageRef | None = None
 
@@ -59,7 +61,6 @@ class ItemUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: str | None = Field(default=None, min_length=1, max_length=80)
     storage_zone: StorageZone | None = None
-    image_ref: str | None = None
     status: ItemStatus | None = None
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=3)
     unit: str | None = Field(default=None, min_length=1, max_length=80)
@@ -92,3 +93,4 @@ class ItemOut(BaseModel):
     status: ItemStatus
     storage_location_id: UUID | None = None
     storage_zone: StorageZone | None = None
+    image_ref: str | None = None
