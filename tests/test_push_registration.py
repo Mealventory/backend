@@ -9,7 +9,6 @@ TOKEN = 'ExpoPushToken[test-device-1]'
 @pytest.fixture
 def push_api(inventory_api):
     client, identity, engine = inventory_api
-    PushToken.__table__.create(engine)
     return client, identity, engine
 
 def test_registration_transfer_and_owner_scoped_cleanup(push_api):
