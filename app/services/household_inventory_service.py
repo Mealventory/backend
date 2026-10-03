@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.initial_quantity, i.unit, i.expiry_date, i.status, i.storage_location_id,
+    i.quantity, i.initial_quantity, i.unit, i.expiry_date, i.status, i.storage_location_id, i.image_ref,
     (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
         AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
@@ -56,6 +56,13 @@ def list_items(db, household_id, status='active', zone=None, expiring_days=None,
     return [_decorate_item(row) for row in rows]
 
 
+def _check_image_ref_household(household_id, image_ref):
+    if image_ref and not str(image_ref).startswith('https://'):
+        owner = str(image_ref).split('/', 1)[0]
+        if owner != str(household_id):
+            raise AuthProblem(400, 'Image path must belong to the selected household')
+
+
 def _check_location(db, household_id, location_id):
     if location_id and not db.execute(text('''SELECT 1 FROM storage_locations
         WHERE id = :id AND household_id = :household_id'''),
@@ -75,20 +82,22 @@ def add_item(db, household_id, item, *, commit=True):
     food_id, item_id = str(uuid4()), str(uuid4())
     try:
         _check_location(db, household_id, item.storage_location_id)
+        _check_image_ref_household(household_id, item.image_ref)
         location = str(item.storage_location_id) if item.storage_location_id else _zone_location(db, household_id, item.storage_zone)
         db.execute(text('''INSERT INTO foods (id, name, category, default_unit)
             VALUES (:id, :name, :category, :unit)'''),
                    dict(id=food_id, name=item.name, category=item.category, unit=item.unit))
         db.execute(text('''INSERT INTO inventory_items
             (id, household_id, food_id, quantity, quantity_tracking_enabled, initial_quantity,
-             low_stock_threshold_percent, unit, expiry_date, status, storage_location_id)
+             low_stock_threshold_percent, unit, expiry_date, status, storage_location_id, image_ref)
             VALUES (:id, :household_id, :food_id, :quantity, :tracking, :initial_quantity,
-                    :threshold, :unit, :expiry_date, 'active', :location)'''),
+                    :threshold, :unit, :expiry_date, 'active', :location, :image_ref)'''),
                    dict(id=item_id, household_id=str(household_id), food_id=food_id,
                         quantity=str(item.quantity), tracking=True,
                         initial_quantity=str(item.quantity),
                         threshold='10', unit=item.unit,
-                        expiry_date=item.expiry_date, location=location))
+                        expiry_date=item.expiry_date, location=location,
+                        image_ref=item.image_ref))
         result = get_item(db, household_id, item_id)
         if commit:
             db.commit()
@@ -139,6 +148,8 @@ def update_item(db, household_id, item_id, patch):
             raise AuthProblem(409, 'Only active items can be edited')
         if 'storage_location_id' in values:
             _check_location(db, household_id, values['storage_location_id'])
+        if 'image_ref' in values:
+            _check_image_ref_household(household_id, values['image_ref'])
         if 'storage_zone' in values:
             values['storage_location_id'] = _zone_location(db, household_id, values.pop('storage_zone'))
         if 'name' in values or 'category' in values:
