@@ -35,6 +35,25 @@ BEGIN
             file_size_limit = EXCLUDED.file_size_limit,
             allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+        EXECUTE $function_ddl$
+            CREATE OR REPLACE FUNCTION public.mealventory_storage_household_member(target_household text)
+            RETURNS boolean
+            LANGUAGE sql
+            STABLE
+            SECURITY DEFINER
+            SET search_path = pg_catalog, public
+            AS $function_body$
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM public.household_members hm
+                    WHERE hm.household_id::text = target_household
+                      AND hm.user_id = auth.uid()
+                )
+            $function_body$
+        $function_ddl$;
+        EXECUTE 'REVOKE ALL ON FUNCTION public.mealventory_storage_household_member(text) FROM PUBLIC';
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.mealventory_storage_household_member(text) TO authenticated';
+
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_select ON storage.objects';
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_insert ON storage.objects';
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_update ON storage.objects';
@@ -47,11 +66,8 @@ BEGIN
             TO authenticated
             USING (
                 bucket_id = 'pantry-item-images'
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.household_members hm
-                    WHERE hm.household_id::text = split_part(name, '/', 1)
-                      AND hm.user_id = auth.uid()
+                AND public.mealventory_storage_household_member(
+                    split_part(name, '/', 1)
                 )
             )
         $policy$;
@@ -63,11 +79,8 @@ BEGIN
             TO authenticated
             WITH CHECK (
                 bucket_id = 'pantry-item-images'
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.household_members hm
-                    WHERE hm.household_id::text = split_part(name, '/', 1)
-                      AND hm.user_id = auth.uid()
+                AND public.mealventory_storage_household_member(
+                    split_part(name, '/', 1)
                 )
             )
         $policy$;
@@ -79,20 +92,14 @@ BEGIN
             TO authenticated
             USING (
                 bucket_id = 'pantry-item-images'
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.household_members hm
-                    WHERE hm.household_id::text = split_part(name, '/', 1)
-                      AND hm.user_id = auth.uid()
+                AND public.mealventory_storage_household_member(
+                    split_part(name, '/', 1)
                 )
             )
             WITH CHECK (
                 bucket_id = 'pantry-item-images'
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.household_members hm
-                    WHERE hm.household_id::text = split_part(name, '/', 1)
-                      AND hm.user_id = auth.uid()
+                AND public.mealventory_storage_household_member(
+                    split_part(name, '/', 1)
                 )
             )
         $policy$;
@@ -104,11 +111,8 @@ BEGIN
             TO authenticated
             USING (
                 bucket_id = 'pantry-item-images'
-                AND EXISTS (
-                    SELECT 1
-                    FROM public.household_members hm
-                    WHERE hm.household_id::text = split_part(name, '/', 1)
-                      AND hm.user_id = auth.uid()
+                AND public.mealventory_storage_household_member(
+                    split_part(name, '/', 1)
                 )
             )
         $policy$;
@@ -126,6 +130,7 @@ BEGIN
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_insert ON storage.objects';
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_update ON storage.objects';
         EXECUTE 'DROP POLICY IF EXISTS mealventory_item_images_delete ON storage.objects';
+        EXECUTE 'DROP FUNCTION IF EXISTS public.mealventory_storage_household_member(text)';
     END IF;
 END
 $do$;
