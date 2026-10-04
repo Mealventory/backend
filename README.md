@@ -9,7 +9,10 @@ Use Python 3.11.9 and configure `.env` with `DATABASE_URL` and `AI_SERVICE_URL`.
 Supabase access tokens authenticate requests. Configure `SUPABASE_URL` and
 `SUPABASE_JWT_ALGORITHM`; HS256 also needs `SUPABASE_JWT_SECRET`. See
 [authentication setup and rollout limitations](https://github.com/Mealventory/docs/blob/main/supabase-auth.md).
-`OPENROUTER_API_KEY` and `OPENROUTER_MODEL` configure production recipe generation.\nRecipe generation runs directly in the backend through OpenRouter; it does not call\n`ai-services`. The provider request uses a 60-second timeout and provider/model\nfailures are returned to clients as safe 503/504 errors.
+`OPENROUTER_API_KEY` and `OPENROUTER_MODEL` configure production recipe generation.
+Recipe generation runs directly in the backend through OpenRouter; it does not call
+`ai-services`. The provider request uses a 60-second timeout and provider/model
+failures are returned to clients as safe 503/504 errors.
 
 ```sh
 python -m pip install -r requirements-dev.txt
