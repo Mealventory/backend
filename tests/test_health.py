@@ -31,7 +31,14 @@ def test_database_failure_is_503_without_connection_details():
         with TestClient(app) as client:
             response = client.get('/api/v1/health')
             assert response.status_code == 503
-            assert response.json() == {'status': 'unhealthy', 'database': 'unavailable'}
+            assert response.headers['content-type'] == 'application/problem+json'
+            assert response.json() == {
+                'type': 'about:blank',
+                'title': 'Service Unavailable',
+                'status': 503,
+                'detail': 'Database unavailable',
+                'instance': '/api/v1/health',
+            }
             assert 'do-not-expose' not in response.text
             assert client.get('/').json() == {'status': 'API running'}
     finally:
