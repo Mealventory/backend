@@ -3,6 +3,7 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from app.core.auth_errors import AuthProblem
+from app.services import activity_service
 
 COLUMNS = 'id, household_id, food_id, name, quantity, unit, is_checked AS checked, created_at, updated_at'
 
@@ -13,7 +14,7 @@ def list_items(db, household_id):
                       {'home': str(household_id)}).mappings().all()
 
 
-def add_item(db, household_id, item):
+def add_item(db, household_id, item, actor=None):
     try:
         if item.food_id and not db.execute(text('SELECT 1 FROM foods WHERE id=:id'),
                                            {'id': str(item.food_id)}).first():
@@ -25,6 +26,15 @@ def add_item(db, household_id, item):
             food=str(item.food_id) if item.food_id else None, name=item.name,
             quantity=str(item.quantity), unit=item.unit)).mappings().one()
         result = dict(row)
+        activity_service.record_event(
+            db,
+            household_id,
+            actor,
+            'shopping_added',
+            result['name'],
+            entity_type='shopping',
+            entity_id=result['id'],
+        )
         db.commit()
         return result
     except IntegrityError:
