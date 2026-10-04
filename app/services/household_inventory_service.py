@@ -10,6 +10,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import text
 from app.core.auth_errors import AuthProblem
 from app.services.notification_service import send_low_stock_notification
+from app.services import activity_service
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ def get_item(db, household_id, item_id):
     return _decorate_item(row)
 
 
-def add_item(db, household_id, item, *, commit=True):
+def add_item(db, household_id, item, *, commit=True, actor=None):
     food_id, item_id = str(uuid4()), str(uuid4())
     try:
         _check_location(db, household_id, item.storage_location_id)
@@ -99,6 +100,7 @@ def add_item(db, household_id, item, *, commit=True):
                         expiry_date=item.expiry_date, location=location,
                         image_ref=item.image_ref))
         result = get_item(db, household_id, item_id)
+        activity_service.record_event(db, household_id, actor, 'added', result['name'], entity_id=item_id)
         if commit:
             db.commit()
         return result
@@ -107,9 +109,9 @@ def add_item(db, household_id, item, *, commit=True):
         raise
 
 
-def add_batch(db, household_id, items):
+def add_batch(db, household_id, items, actor=None):
     try:
-        rows = [add_item(db, household_id, item, commit=False) for item in items]
+        rows = [add_item(db, household_id, item, commit=False, actor=actor) for item in items]
         db.commit()
         return rows
     except Exception:
@@ -129,13 +131,13 @@ def _zone_location(db, household_id, zone):
     return str(row['id'])
 
 
-def update_item(db, household_id, item_id, patch):
+def update_item(db, household_id, item_id, patch, actor=None):
     try:
         values = patch.model_dump(exclude_unset=True)
         params = dict(id=str(item_id), household_id=str(household_id))
         # Serialize all edits against status transitions before copying catalogue data.
         lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
-        current = db.execute(text('''SELECT food_id, status
+        current = db.execute(text('''SELECT food_id, status, storage_location_id
             FROM inventory_items WHERE id=:id AND household_id=:household_id''' + lock),
             params).mappings().first()
         if current is None:
@@ -173,6 +175,14 @@ def update_item(db, household_id, item_id, patch):
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
         quantity_changed = 'quantity' in values
+        activity_action = (
+            'moved'
+            if str(current['storage_location_id'] or '') != str(row['storage_location_id'] or '')
+            else 'updated'
+        )
+        activity_service.record_event(
+            db, household_id, actor, activity_action, row['name'], entity_id=item_id
+        )
         db.commit()
         if quantity_changed:
             try:
@@ -186,7 +196,7 @@ def update_item(db, household_id, item_id, patch):
         raise
 
 
-def transition_item(db, household_id, item_id, target):
+def transition_item(db, household_id, item_id, target, actor=None):
     if target not in ('consumed', 'discarded'):
         raise ValueError('Unsupported item transition')
     try:
@@ -197,6 +207,9 @@ def transition_item(db, household_id, item_id, target):
         row = get_item(db, household_id, item_id)
         if result.rowcount == 0:
             raise AuthProblem(400, 'Item is not active')
+        activity_service.record_event(
+            db, household_id, actor, target, row['name'], entity_id=item_id
+        )
         db.commit()
         return row
     except Exception:
@@ -204,13 +217,17 @@ def transition_item(db, household_id, item_id, target):
         raise
 
 
-def delete_item(db, household_id, item_id):
+def delete_item(db, household_id, item_id, actor=None):
     try:
+        item = get_item(db, household_id, item_id)
         result = db.execute(text('''DELETE FROM inventory_items
             WHERE id = :id AND household_id = :household_id'''),
                             dict(id=str(item_id), household_id=str(household_id)))
         if result.rowcount == 0:
             raise AuthProblem(404, 'Item not found in this household')
+        activity_service.record_event(
+            db, household_id, actor, 'deleted', item['name'], entity_id=item_id
+        )
         db.commit()
     except Exception:
         db.rollback()
