@@ -92,6 +92,19 @@ when they need to revoke access.
 The food predictor retains its existing response; its date attributes are not
 mapped database columns, so it must not be treated as durable date persistence.
 
+## API error contract
+
+API errors use RFC 7807-style Problem Details with the
+`application/problem+json` media type. Responses include stable `type`,
+`title`, `status`, `detail`, and `instance` fields. Request validation
+errors use status 422 and add an `errors` array containing only field location,
+message, and validation type; submitted values are not echoed back. Provider-specific
+safe recovery hints may appear as extension fields such as `code` and `action`.
+
+The common documented error statuses are 400, 401, 403, 404, 409, 422, 429, 503,
+and 504. Internal exception text, SQL errors, credentials, hostnames, bearer tokens,
+and raw request payloads must never be exposed in public error responses.
+
 ## Expiry push notification job
 
 Phones register Expo push tokens through `PUT /api/v1/notifications/device`.
