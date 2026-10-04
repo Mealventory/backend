@@ -98,3 +98,41 @@ def test_concurrent_join_is_idempotent(postgres_engine):
         assert list(pool.map(join,range(2)))==['member','member']
     with postgres_engine.connect() as connection:
         assert connection.execute(text('SELECT count(*) FROM household_members WHERE household_id=:hid AND user_id=:uid'),{'hid':hid,'uid':B}).scalar()==1
+
+
+
+def test_concurrent_invite_rotations_leave_one_valid_code(postgres_engine):
+    with Session(postgres_engine) as db:
+        hh = service.create_household(db, A, 'Concurrent rotations')
+        hid = str(hh.id)
+        old_code = hh.invite_code
+        service.join_household(db, B, old_code)
+        service.update_role(db, hid, A, B, 'owner')
+
+    def rotate(user):
+        with Session(postgres_engine) as db:
+            return service.rotate_invite_code(db, hid, user).invite_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rotated_codes = list(pool.map(rotate, [A, B]))
+
+    assert len(set(rotated_codes)) == 2
+
+    with postgres_engine.connect() as connection:
+        final_code = connection.execute(
+            text('SELECT invite_code FROM households WHERE id=:hid'),
+            {'hid': hid},
+        ).scalar_one()
+        owner_count = connection.execute(
+            text("SELECT count(*) FROM household_members WHERE household_id=:hid AND role='owner'"),
+            {'hid': hid},
+        ).scalar_one()
+        old_code_count = connection.execute(
+            text('SELECT count(*) FROM households WHERE invite_code=:code'),
+            {'code': old_code},
+        ).scalar_one()
+
+    assert final_code in rotated_codes
+    assert final_code != old_code
+    assert owner_count == 2
+    assert old_code_count == 0
