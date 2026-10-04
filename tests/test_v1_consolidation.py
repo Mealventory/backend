@@ -27,16 +27,38 @@ def test_retired_endpoints_are_not_registered(client, path, method):
 def test_openapi_preserves_v1_contract(client):
     baseline = json.loads((Path(__file__).parent/'contracts/v1-openapi.json').read_text())
     current = client.get('/openapi.json').json()
-    # Additive household APIs may extend the schema without changing existing contracts.
+    retired_validation_components = {'HTTPValidationError', 'ValidationError'}
+
+    # Additive APIs may extend the schema. FastAPI's legacy validation-only schemas
+    # may disappear now that 422 responses use the shared Problem Details contract.
     for section, definitions in baseline['components'].items():
         for name, definition in definitions.items():
+            if name in retired_validation_components and name not in current['components'][section]:
+                continue
             assert current['components'][section][name] == definition
+
     assert baseline['paths'].keys() <= current['paths'].keys()
+    problem_statuses = {'400', '401', '403', '404', '409', '422', '429', '503', '504'}
+    required_problem_fields = {'type', 'title', 'status', 'detail', 'instance'}
+
     for path, methods in baseline['paths'].items():
         for verb, operation in methods.items():
             actual = current['paths'][path][verb]
-            # Human-readable descriptions may improve; IDs, validation and responses may not drift.
-            assert {k:v for k,v in actual.items() if k!='description'} == {k:v for k,v in operation.items() if k!='description'}
+
+            # Endpoint shape and successful responses remain backwards compatible.
+            actual_core = {k: v for k, v in actual.items() if k not in {'description', 'responses'}}
+            baseline_core = {k: v for k, v in operation.items() if k not in {'description', 'responses'}}
+            assert actual_core == baseline_core
+            for status_code, response in operation['responses'].items():
+                if status_code.isdigit() and int(status_code) < 400:
+                    assert actual['responses'][status_code] == response
+
+            # All documented common API errors now share one RFC 7807 media type/schema.
+            for status_code in problem_statuses:
+                response = actual['responses'][status_code]
+                schema = response['content']['application/problem+json']['schema']
+                assert required_problem_fields <= set(schema['required'])
+
     assert client.get('/docs').status_code == 200
     assert client.get('/').json() == {'status': 'API running'}
 
