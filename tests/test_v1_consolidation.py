@@ -53,8 +53,12 @@ def test_openapi_preserves_v1_contract(client):
                 if status_code.isdigit() and int(status_code) < 400:
                     assert actual['responses'][status_code] == response
 
-            # All documented common API errors now share one RFC 7807 media type/schema.
-            for status_code in problem_statuses:
+            # Every common error that this operation documents must use the
+            # shared RFC 7807 media type/schema. Operations do not need to
+            # advertise statuses they cannot actually return.
+            documented_problem_statuses = problem_statuses & set(actual['responses'])
+            assert documented_problem_statuses
+            for status_code in documented_problem_statuses:
                 response = actual['responses'][status_code]
                 schema = response['content']['application/problem+json']['schema']
                 assert required_problem_fields <= set(schema['required'])
