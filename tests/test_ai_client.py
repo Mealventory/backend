@@ -111,7 +111,9 @@ def test_scan_api_timeout_has_manual_entry_and_no_database_write(inventory_api, 
     response = client.post('/api/v1/scan/', headers={'X-Household-ID': HOME}, data={'mode': 'food'},
                            files={'file': ('food.jpg', b'image', 'image/jpeg')})
     assert response.status_code == 504, response.text
-    assert response.json()['detail']['action'] == 'manual_entry'
+    assert response.headers['content-type'] == 'application/problem+json'
+    assert response.json()['action'] == 'manual_entry'
+    assert response.json()['code'] == 'AI_SERVICE_UNAVAILABLE'
     from sqlalchemy import text
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM inventory_items')).scalar() == 0
