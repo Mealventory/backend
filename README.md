@@ -14,10 +14,21 @@ Recipe generation runs directly in the backend through OpenRouter; it does not c
 `ai-services`. The provider request uses a 60-second timeout and provider/model
 failures are returned to clients as safe 503/504 errors.
 
+Create a local virtual environment instead of committing one to the repository:
+
 ```sh
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
 python -m pip install -r requirements-dev.txt
+npm ci
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+On Windows PowerShell, activate the environment with
+`.venv\Scripts\Activate.ps1`. Both `.venv*/` and `node_modules/` are
+ignored by Git and must be recreated locally from the checked-in dependency
+manifests and lockfile.
 
 Swagger UI: http://127.0.0.1:8000/docs
 OpenAPI: http://127.0.0.1:8000/openapi.json
@@ -123,7 +134,7 @@ upgrade/downgrade behavior, and OpenAPI contract checks.
 
 ## Continuous integration
 
-GitHub Actions runs `.github/workflows/backend-ci.yml` for every pull request and every push to `main`. The required CI path uses Python 3.11, installs `requirements-dev.txt`, runs the ordinary offline pytest suite, repeats the OpenAPI contract regression test with a focused log, and verifies that the backend Docker image builds.
+GitHub Actions runs `.github/workflows/backend-ci.yml` for every pull request and every push to `main`. The required CI path rejects committed `.venv311/` and `node_modules/` directories, uses Python 3.11, installs `requirements-dev.txt`, runs the ordinary offline pytest suite, repeats the OpenAPI contract regression test with a focused log, and verifies that the backend Docker image builds.
 
 The normal CI jobs do not use production credentials, Supabase production access, Google APIs, paid AI providers, or the shared database. The test fixtures provide local/mocked configuration only.
 
