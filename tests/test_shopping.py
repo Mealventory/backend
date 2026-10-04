@@ -26,6 +26,10 @@ def test_member_crud_visible_between_requests(shopping_api):
     assert item['name'] == 'Milk' and item['unit'] == 'bottles'
     assert item['checked'] is False and item['food_id'] is None
     assert item['household_id'] == HOME and item['created_at'] and item['updated_at']
+    activity = client.get('/api/v1/activity', headers=HEADERS).json()
+    assert activity[0]['action'] == 'shopping_added'
+    assert activity[0]['item_name'] == 'Milk'
+    assert activity[0]['entity_type'] == 'shopping'
     identity['id'] = MEMBER
     assert client.get(PATH, headers=HEADERS).json() == [item]
     url = PATH + '/' + item['id']
