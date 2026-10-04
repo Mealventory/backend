@@ -2,9 +2,10 @@ from uuid import UUID
 from typing import Annotated
 from fastapi import APIRouter, Depends, Response, Query, Body
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_current_household
+from app.core.dependencies import get_current_household, get_current_user
 from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
+from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
 
 router = APIRouter(responses={400: {'description': 'Invalid storage zone, household header, or item is not active'}, 404: {'description': 'Item or location not in household'},
@@ -22,39 +23,45 @@ def list_items(household_id: UUID = Depends(get_current_household), db: Session 
 
 @router.post('/batch', response_model=list[ItemOut], status_code=201)
 def add_batch(items: Annotated[list[ItemCreate], Body(min_length=1, max_length=100)],
-              household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+              household_id: UUID = Depends(get_current_household),
+              current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
     """Persist all confirmed items in one transaction, or none on failure."""
-    return service.add_batch(db, household_id, items)
+    return service.add_batch(db, household_id, items, actor=current_user)
 
 
 @router.patch('/{item_id}', response_model=ItemOut)
 def update_item(item_id: UUID, patch: ItemUpdate,
-                household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+                household_id: UUID = Depends(get_current_household),
+                current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
     """Edit active items atomically, including labels, zone and status. Null clears expiry or location."""
-    return service.update_item(db, household_id, item_id, patch)
+    return service.update_item(db, household_id, item_id, patch, actor=current_user)
 
 
 @router.post('/{item_id}/consume', response_model=ItemOut)
-def consume_item(item_id: UUID, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+def consume_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
+                 current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
     """Mark an active item consumed without deleting history. Non-active items return 400."""
-    return service.transition_item(db, household_id, item_id, 'consumed')
+    return service.transition_item(db, household_id, item_id, 'consumed', actor=current_user)
 
 
 @router.post('/{item_id}/discard', response_model=ItemOut)
-def discard_item(item_id: UUID, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+def discard_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
+                 current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
     """Mark an active item discarded without deleting history. Non-active items return 400."""
-    return service.transition_item(db, household_id, item_id, 'discarded')
+    return service.transition_item(db, household_id, item_id, 'discarded', actor=current_user)
 
 
 @router.post('', response_model=ItemOut, status_code=201)
-def add_item(item: ItemCreate, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
-    return service.add_item(db, household_id, item)
+def add_item(item: ItemCreate, household_id: UUID = Depends(get_current_household),
+             current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
+    return service.add_item(db, household_id, item, actor=current_user)
 
 
 @router.delete('/{item_id}', status_code=204)
-def delete_item(item_id: UUID, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+def delete_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
+                current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
     """Delete only from the selected household. Owners and members can delete."""
-    service.delete_item(db, household_id, item_id)
+    service.delete_item(db, household_id, item_id, actor=current_user)
     return Response(status_code=204)
 
 

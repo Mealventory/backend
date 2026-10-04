@@ -38,6 +38,16 @@ def inventory_api():
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
             image_ref text,
             created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
+        c.execute(text('''CREATE TABLE household_activity_events (
+            id text PRIMARY KEY,
+            household_id text NOT NULL,
+            actor_user_id text NOT NULL,
+            actor_name text NOT NULL,
+            action text NOT NULL,
+            entity_type text NOT NULL,
+            entity_id text,
+            item_name text NOT NULL,
+            created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
     with Session(engine) as db:
         db.add_all([HouseholdMember(household_id=HOME, user_id=OWNER, role='owner'),
                     HouseholdMember(household_id=HOME, user_id=MEMBER, role='member'),

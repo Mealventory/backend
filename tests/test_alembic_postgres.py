@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261003_0006"
+HEAD = "20261004_0007"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -44,6 +44,7 @@ REQUIRED_TABLES = {
     "device_push_tokens",
     "household_saved_recipes",
     "household_recipe_completions",
+    "household_activity_events",
 }
 
 
@@ -150,6 +151,13 @@ def test_clean_database_upgrades_to_current_schema(database_url):
                     "SELECT count(*) FROM pg_indexes "
                     "WHERE schemaname='public' "
                     "AND indexname='idx_recipe_completions_household_created'"
+                )
+            ).scalar_one() == 1
+            assert connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_indexes "
+                    "WHERE schemaname='public' "
+                    "AND indexname='idx_household_activity_household_created'"
                 )
             ).scalar_one() == 1
             inventory_columns = {
