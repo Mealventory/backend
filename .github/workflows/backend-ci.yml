@@ -33,7 +33,7 @@ jobs:
       - name: Reject committed generated dependency directories
         shell: bash
         run: |
-          tracked="$(git ls-files '.venv311/**' 'node_modules/**')"
+          tracked="$(git ls-files | grep -E '^(\.venv[^/]*/|venv/|env/|node_modules/)' || true)"
           if [ -n "$tracked" ]; then
             echo "Generated dependency directories must not be committed:"
             echo "$tracked"
