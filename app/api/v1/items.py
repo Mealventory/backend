@@ -2,14 +2,24 @@ from uuid import UUID
 from typing import Annotated
 from fastapi import APIRouter, Depends, Response, Query, Body
 from sqlalchemy.orm import Session
+from app.core.auth_errors import problem_response
 from app.core.dependencies import get_current_household, get_current_user
 from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
 from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
 
-router = APIRouter(responses={400: {'description': 'Invalid storage zone, household header, or item is not active'}, 404: {'description': 'Item or location not in household'},
-                             409: {'description': 'Item is no longer active or has a conflicting final status'}})
+router = APIRouter(
+    responses={
+        400: problem_response(
+            "Invalid storage zone, household header, or item is not active"
+        ),
+        404: problem_response("Item or location not in household"),
+        409: problem_response(
+            "Item is no longer active or has a conflicting final status"
+        ),
+    }
+)
 
 
 @router.get('', response_model=list[ItemOut])
