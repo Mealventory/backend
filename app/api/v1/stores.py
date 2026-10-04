@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+from app.core.auth_errors import problem_response
 from app.core.dependencies import get_current_household
 from app.dependencies.database import get_db
 from app.schemas.stores import (
@@ -14,7 +15,9 @@ from app.schemas.stores import (
 from app.services import store_service as service
 
 router = APIRouter(
-    responses={404: {"description": "Store not found in the selected household"}}
+    responses={
+        404: problem_response("Store not found in the selected household")
+    }
 )
 
 
