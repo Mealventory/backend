@@ -1,10 +1,11 @@
 """Database readiness probe, deliberately independent of user authentication."""
-from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+
+from app.core.auth_errors import problem_response
 from app.dependencies.database import get_db
 
 router = APIRouter()
@@ -15,12 +16,16 @@ class HealthOut(BaseModel):
     database: str
 
 
-@router.get('', response_model=HealthOut, responses={503: {'model': HealthOut, 'description': 'Database unavailable'}})
+@router.get(
+    "",
+    response_model=HealthOut,
+    responses={503: problem_response("Database unavailable")},
+)
 def health(db: Session = Depends(get_db)):
     """Check database connectivity. This does not verify schema or AI readiness."""
     try:
-        db.execute(text('SELECT 1'))
-    except SQLAlchemyError:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
         # Connection errors can contain credentials and hostnames; never return them.
-        return JSONResponse(status_code=503, content={'status': 'unhealthy', 'database': 'unavailable'})
-    return {'status': 'healthy', 'database': 'available'}
+        raise HTTPException(status_code=503, detail="Database unavailable") from exc
+    return {"status": "healthy", "database": "available"}
