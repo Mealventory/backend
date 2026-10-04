@@ -3,25 +3,38 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
 
-# virtual environment
-venv/
+# Virtual environments
 .venv/
+.venv*/
+venv/
 env/
+ENV/
 
-# environment variables
+# Node dependencies
+node_modules/
+
+# Environment variables
 .env
 
-# VS Code
+# Editors
 .vscode/
-
-# Visual Studio
+.idea/
 .vs/
 
 # OS files
 .DS_Store
 Thumbs.db
 
+# Local credentials and databases
 credentials/
 *.db
 *.sqlite3
