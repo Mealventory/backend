@@ -1,5 +1,6 @@
 """Household-scoped activity events for shared kitchen changes."""
 import re
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -37,8 +38,8 @@ def record_event(
     row = db.execute(
         text(
             f"""INSERT INTO household_activity_events
-            (id, household_id, actor_user_id, actor_name, action, entity_type, entity_id, item_name)
-            VALUES (:id, :household_id, :actor_user_id, :actor_name, :action, :entity_type, :entity_id, :item_name)
+            (id, household_id, actor_user_id, actor_name, action, entity_type, entity_id, item_name, created_at)
+            VALUES (:id, :household_id, :actor_user_id, :actor_name, :action, :entity_type, :entity_id, :item_name, :created_at)
             RETURNING {COLUMNS}"""
         ),
         {
@@ -50,6 +51,7 @@ def record_event(
             "entity_type": entity_type,
             "entity_id": str(entity_id) if entity_id else None,
             "item_name": item_name,
+            "created_at": datetime.now(timezone.utc),
         },
     ).mappings().one()
     return dict(row)
