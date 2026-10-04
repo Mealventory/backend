@@ -1,13 +1,16 @@
 from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
+from app.core.auth_errors import problem_response
 from app.core.dependencies import get_current_household, get_current_user
 from app.dependencies.database import get_db
 from app.schemas.shopping import ShoppingItemCreate, ShoppingItemUpdate, ShoppingItemOut, ClearCheckedOut
 from app.schemas.user import UserOut
 from app.services import shopping_service as service
 
-router = APIRouter(responses={404: {'description': 'Shopping item or food not found'}})
+router = APIRouter(
+    responses={404: problem_response("Shopping item or food not found")}
+)
 
 
 @router.get('', response_model=list[ShoppingItemOut])
