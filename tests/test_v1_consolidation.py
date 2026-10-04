@@ -57,11 +57,22 @@ def test_openapi_preserves_v1_contract(client):
             # shared RFC 7807 media type/schema. Operations do not need to
             # advertise statuses they cannot actually return.
             documented_problem_statuses = problem_statuses & set(actual['responses'])
-            assert documented_problem_statuses
             for status_code in documented_problem_statuses:
                 response = actual['responses'][status_code]
                 schema = response['content']['application/problem+json']['schema']
                 assert required_problem_fields <= set(schema['required'])
+
+    # Representative API operations document the shared Problem Details contract.
+    representative = {
+        ('/api/v1/items', 'post'): {'400', '401', '403', '404', '409', '422', '429', '503', '504'},
+        ('/api/v1/scan/', 'post'): {'400', '401', '403', '404', '422', '429', '503', '504'},
+        ('/api/v1/health', 'get'): {'503'},
+    }
+    for (path, verb), expected_statuses in representative.items():
+        responses = current['paths'][path][verb]['responses']
+        assert expected_statuses <= set(responses)
+        for status_code in expected_statuses:
+            assert 'application/problem+json' in responses[status_code]['content']
 
     assert client.get('/docs').status_code == 200
     assert client.get('/').json() == {'status': 'API running'}
