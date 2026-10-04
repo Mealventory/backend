@@ -36,6 +36,7 @@ def inventory_api():
             low_stock_threshold_percent numeric NOT NULL DEFAULT 10,
             low_stock_notified_at timestamp,
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
+            image_ref text,
             created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
     with Session(engine) as db:
         db.add_all([HouseholdMember(household_id=HOME, user_id=OWNER, role='owner'),
@@ -228,3 +229,56 @@ def test_discard_history_visible_to_another_member(inventory_api):
         assert client.post(url + '/' + action, headers=headers).status_code == 400
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM inventory_items')).scalar() == 1
+
+
+def test_item_image_reference_create_update_clear_and_household_scope(inventory_api):
+    client, identity, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    storage_ref = f'{HOME}/milk-photo.jpg'
+
+    created = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'category': 'Dairy',
+        'image_ref': storage_ref,
+    })
+    assert created.status_code == 201, created.text
+    item = created.json()
+    assert item['image_ref'] == storage_ref
+
+    remote = 'https://images.openfoodfacts.org/images/products/test.jpg'
+    updated = client.patch(
+        '/api/v1/items/' + item['id'],
+        headers=headers,
+        json={'image_ref': remote},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['image_ref'] == remote
+
+    cleared = client.patch(
+        '/api/v1/items/' + item['id'],
+        headers=headers,
+        json={'image_ref': None},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()['image_ref'] is None
+
+    for invalid in [
+        '',
+        'http://example.com/photo.jpg',
+        '/absolute/path.jpg',
+        '../escape.jpg',
+        f'{OTHER}/foreign-photo.jpg',
+    ]:
+        response = client.patch(
+            '/api/v1/items/' + item['id'],
+            headers=headers,
+            json={'image_ref': invalid},
+        )
+        assert response.status_code in (400, 422), (invalid, response.text)
+
+    identity['id'] = OUTSIDER
+    assert client.patch(
+        '/api/v1/items/' + item['id'],
+        headers={'X-Household-ID': OTHER},
+        json={'image_ref': f'{OTHER}/attempt.jpg'},
+    ).status_code == 404
