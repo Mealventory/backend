@@ -57,6 +57,7 @@ See [database migration setup, macOS/Windows commands, downgrade guidance, and P
 | POST | `/api/v1/households` | Create household and owner membership |
 | POST | `/api/v1/households/join` | Join by invite code |
 | GET | `/api/v1/households/me` | List your households |
+| POST | `/api/v1/households/{household_id}/invite-code/rotate` | Owner-only invite code rotation/revocation |
 | GET | `/api/v1/households/{household_id}/members` | List household members |
 | PATCH, DELETE | `/api/v1/households/{household_id}/members/{user_id}` | Manage roles or remove/leave |
 | GET, POST | `/api/v1/inventory/` | List or add inventory |
@@ -72,6 +73,11 @@ See [database migration setup, macOS/Windows commands, downgrade guidance, and P
 The sample helper requires `ENABLE_SAMPLE_SCAN=true`. Keep it disabled in
 production. It requires a Supabase token and verified `X-Household-ID`; persistence
 can target only the authenticated user.
+
+Household invite codes are reusable until an owner rotates them. Rotation immediately
+invalidates the previous code without changing existing memberships. Automatic invite
+code expiration is intentionally out of scope for now; owners explicitly rotate codes
+when they need to revoke access.
 The food predictor retains its existing response; its date attributes are not
 mapped database columns, so it must not be treated as durable date persistence.
 
