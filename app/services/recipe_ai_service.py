@@ -1,26 +1,53 @@
-import os
 import json
+import os
+
 import httpx
 from dotenv import load_dotenv
+
+from app.schemas.recipe_suggestion import (
+    RecipeGenerationRequest,
+    RecipeProviderResponse,
+)
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_TIMEOUT_SECONDS = 60.0
 
 
-async def generate_recipe_suggestions(priority_items, other_items):
+class RecipeProviderError(Exception):
+    """Base exception for client-safe recipe provider failures."""
+
+
+class RecipeProviderTimeout(RecipeProviderError):
+    """Raised when the configured recipe provider times out."""
+
+
+class RecipeProviderUnavailable(RecipeProviderError):
+    """Raised when the configured recipe provider is unavailable or returns invalid data."""
+
+
+async def generate_recipe_suggestions(
+    priority_items: list[dict[str, object]],
+    other_items: list[dict[str, object]],
+) -> RecipeProviderResponse:
     if not OPENROUTER_API_KEY:
-        raise ValueError("Recipe provider is not configured")
+        raise RecipeProviderUnavailable("Recipe provider is not configured")
+
+    request = RecipeGenerationRequest(
+        priority_items=priority_items,
+        other_items=other_items,
+    )
     prompt = f"""
 You are a meal planning assistant for a food waste reduction app.
 
 Priority ingredients that should be used first:
-{json.dumps(priority_items, indent=2)}
+{json.dumps([item.model_dump() for item in request.priority_items], indent=2)}
 
 Other available ingredients:
-{json.dumps(other_items, indent=2)}
+{json.dumps([item.model_dump() for item in request.other_items], indent=2)}
 
 Generate 3 realistic and clearly different recipe ideas.
 
@@ -62,28 +89,35 @@ Return this exact structure:
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
     }
-
     payload = {
         "model": OPENROUTER_MODEL,
         "messages": [
             {
                 "role": "system",
-                "content": "You generate practical, realistic recipes using the user's listed ingredients. Prioritize ingredients expiring soon. Common pantry staples and minor extras are allowed, but the recipe must still be primarily based on the provided inventory. If an ingredient is in inventory, it must not be placed in optional_pantry_basics. Every ingredient mentioned in the instructions must appear in the recipe fields. Any pantry staples used must be listed under optional_pantry_basics."
+                "content": (
+                    "You generate practical, realistic recipes using the user's listed ingredients. "
+                    "Prioritize ingredients expiring soon. Common pantry staples and minor extras are "
+                    "allowed, but the recipe must still be primarily based on the provided inventory. "
+                    "If an ingredient is in inventory, it must not be placed in optional_pantry_basics. "
+                    "Every ingredient mentioned in the instructions must appear in the recipe fields. "
+                    "Any pantry staples used must be listed under optional_pantry_basics."
+                ),
             },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt},
         ],
-        "response_format": {
-            "type": "json_object"
-        }
+        "response_format": {"type": "json_object"},
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        data = response.json()
-
-    content = data["choices"][0]["message"]["content"]
-    return json.loads(content)
+    try:
+        async with httpx.AsyncClient(timeout=OPENROUTER_TIMEOUT_SECONDS) as client:
+            response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+        content = data["choices"][0]["message"]["content"]
+        return RecipeProviderResponse.model_validate_json(content)
+    except httpx.TimeoutException as exc:
+        raise RecipeProviderTimeout("Recipe provider timed out") from exc
+    except RecipeProviderError:
+        raise
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, IndexError) as exc:
+        raise RecipeProviderUnavailable("Recipe provider is unavailable") from exc
