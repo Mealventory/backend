@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     SUPABASE_JWT_SECRET: SecretStr | None = None
     SUPABASE_JWT_ALGORITHM: Literal["HS256", "ES256", "RS256"] = "HS256"
 
+    # Protected cron/job trigger for expiry notification delivery.
+    NOTIFICATION_JOB_SECRET: SecretStr | None = None
+    # Optional when Expo push security is enabled for the EAS project.
+    EXPO_PUSH_ACCESS_TOKEN: SecretStr | None = None
+    EXPO_PUSH_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0, le=30)
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

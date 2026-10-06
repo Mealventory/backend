@@ -1,3 +1,6 @@
+-- Legacy clean-database bootstrap retained for compatibility/tests.
+-- Alembic is the structural migration history for new environments; see
+-- docs/database-migrations.md.
 -- Issue #29: initial household schema for a CLEAN PostgreSQL 16 database.
 -- Intentionally fails on existing objects; never drops or overwrites live data.
 -- User UUIDs are external identity references. Supabase auth FKs and RLS are separate work.
@@ -67,6 +70,10 @@ CREATE TABLE public.inventory_items (
     food_id uuid NOT NULL REFERENCES public.foods(id),
     storage_location_id uuid,
     quantity numeric(12,3) NOT NULL DEFAULT 1 CHECK (quantity >= 0 AND quantity <> 'NaN'::numeric),
+    quantity_tracking_enabled boolean NOT NULL DEFAULT false,
+    initial_quantity numeric(12,3) CHECK (initial_quantity IS NULL OR (initial_quantity > 0 AND initial_quantity <> 'NaN'::numeric)),
+    low_stock_threshold_percent numeric(5,2) NOT NULL DEFAULT 10 CHECK (low_stock_threshold_percent > 0 AND low_stock_threshold_percent <= 100),
+    low_stock_notified_at timestamptz,
     unit text NOT NULL DEFAULT 'units' CHECK (btrim(unit) <> ''),
     purchase_date date,
     expiry_date date,
@@ -74,7 +81,8 @@ CREATE TABLE public.inventory_items (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     FOREIGN KEY (household_id, storage_location_id)
-        REFERENCES public.storage_locations(household_id, id)
+        REFERENCES public.storage_locations(household_id, id),
+    CHECK (NOT quantity_tracking_enabled OR initial_quantity IS NOT NULL)
 );
 CREATE INDEX idx_inventory_tenant ON public.inventory_items (household_id, status, expiry_date);
 CREATE INDEX idx_inventory_food ON public.inventory_items (food_id);
@@ -125,6 +133,17 @@ CREATE TABLE public.shopping_list_items (
 CREATE INDEX idx_shopping_tenant ON public.shopping_list_items (household_id, is_checked);
 CREATE INDEX idx_shopping_food ON public.shopping_list_items (food_id);
 
+CREATE TABLE public.household_stores (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id uuid NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
+    name text NOT NULL CHECK (btrim(name) <> ''),
+    website_url text CHECK (website_url IS NULL OR website_url ~* '^https?://'),
+    sort_order integer NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_household_stores_order ON public.household_stores (household_id, sort_order, created_at, id);
+
 -- Device registrations belong to users, who may belong to multiple households.
 CREATE TABLE public.device_push_tokens (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -151,6 +170,8 @@ CREATE TRIGGER recipes_updated_at BEFORE UPDATE ON public.recipes
 CREATE TRIGGER recipe_ingredients_updated_at BEFORE UPDATE ON public.recipe_ingredients
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER shopping_list_items_updated_at BEFORE UPDATE ON public.shopping_list_items
+    FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER household_stores_updated_at BEFORE UPDATE ON public.household_stores
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER device_push_tokens_updated_at BEFORE UPDATE ON public.device_push_tokens
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

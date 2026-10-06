@@ -9,6 +9,7 @@ from app.main import app
 from app.core.dependencies import get_current_user
 from app.dependencies.database import get_db
 from app.models.household_member import HouseholdMember
+from app.models.push_token import PushToken
 from app.schemas.user import UserOut
 
 OWNER = '10000000-0000-0000-0000-000000000001'
@@ -22,6 +23,7 @@ OTHER = '20000000-0000-0000-0000-000000000002'
 def inventory_api():
     engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
     HouseholdMember.__table__.create(engine)
+    PushToken.__table__.create(engine)
     with engine.begin() as c:
         c.execute(text('''CREATE TABLE storage_locations (id text PRIMARY KEY,
             household_id text NOT NULL, zone text NOT NULL, name text, UNIQUE(household_id, name))'''))
@@ -29,7 +31,22 @@ def inventory_api():
             category text, default_unit text NOT NULL, avg_shelf_life_days integer)'''))
         c.execute(text('''CREATE TABLE inventory_items (id text PRIMARY KEY,
             household_id text NOT NULL, food_id text NOT NULL, quantity numeric NOT NULL,
+            quantity_tracking_enabled boolean NOT NULL DEFAULT 0,
+            initial_quantity numeric,
+            low_stock_threshold_percent numeric NOT NULL DEFAULT 10,
+            low_stock_notified_at timestamp,
             unit text NOT NULL, expiry_date date, status text NOT NULL, storage_location_id text,
+            image_ref text,
+            created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
+        c.execute(text('''CREATE TABLE household_activity_events (
+            id text PRIMARY KEY,
+            household_id text NOT NULL,
+            actor_user_id text NOT NULL,
+            actor_name text NOT NULL,
+            action text NOT NULL,
+            entity_type text NOT NULL,
+            entity_id text,
+            item_name text NOT NULL,
             created_at timestamp DEFAULT CURRENT_TIMESTAMP)'''))
     with Session(engine) as db:
         db.add_all([HouseholdMember(household_id=HOME, user_id=OWNER, role='owner'),
@@ -155,7 +172,10 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
     url = '/api/v1/items/' + row['id']
     for patch in [{}, {'quantity': None}, {'quantity': 0}, {'quantity': 'NaN'},
                   {'quantity': '1.0001'}, {'unit': ''}, {'unit': None},
-                  {'expiry_date': '2026-02-30'}, {'status': 'invalid'}, {'household_id': OTHER}]:
+                  {'expiry_date': '2026-02-30'}, {'status': 'invalid'},
+                  {'quantity_tracking_enabled': False}, {'initial_quantity': 2},
+                  {'low_stock_threshold_percent': 5},
+                  {'household_id': OTHER}]:
         assert client.patch(url, headers=headers, json=patch).status_code == 422, patch
     for items in [[], [{'name': 'Rice'}] * 101, [{'name': 'Rice'}, {'name': ''}]]:
         assert client.post('/api/v1/items/batch', headers=headers, json=items).status_code == 422
@@ -166,6 +186,43 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
         assert client.patch(url, headers={'X-Household-ID': home}, json={'quantity': 4}).status_code == expected
         for action in ['consume', 'discard']:
             assert client.post(url + '/' + action, headers={'X-Household-ID': home}).status_code == expected
+
+
+def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(inventory_api):
+    client, identity, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    created = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Flour',
+        'quantity': 2,
+        'unit': 'kg',
+    })
+    assert created.status_code == 201, created.text
+    item = created.json()
+    assert float(item['remaining_percent']) == 100
+    assert item['is_low_stock'] is False
+
+    url = '/api/v1/items/' + item['id']
+    low = client.patch(url, headers=headers, json={'quantity': 0.2})
+    assert low.status_code == 200, low.text
+    assert float(low.json()['remaining_percent']) == 10
+    assert low.json()['is_low_stock'] is True
+
+    above = client.patch(url, headers=headers, json={'quantity': 0.21})
+    assert above.status_code == 200, above.text
+    assert float(above.json()['remaining_percent']) == 10.5
+    assert above.json()['is_low_stock'] is False
+
+    # Threshold/reference configuration is internal; clients cannot override it.
+    for patch in [
+        {'quantity_tracking_enabled': False},
+        {'initial_quantity': 5},
+        {'low_stock_threshold_percent': 50},
+    ]:
+        assert client.patch(url, headers=headers, json=patch).status_code == 422
+
+    identity['id'] = OUTSIDER
+    assert client.get('/api/v1/items', headers={'X-Household-ID': OTHER}).json() == []
+    assert client.patch(url, headers={'X-Household-ID': OTHER}, json={'quantity': 0.1}).status_code == 404
 
 
 def test_discard_history_visible_to_another_member(inventory_api):
@@ -182,3 +239,56 @@ def test_discard_history_visible_to_another_member(inventory_api):
         assert client.post(url + '/' + action, headers=headers).status_code == 400
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM inventory_items')).scalar() == 1
+
+
+def test_item_image_reference_create_update_clear_and_household_scope(inventory_api):
+    client, identity, _ = inventory_api
+    headers = {'X-Household-ID': HOME}
+    storage_ref = f'{HOME}/milk-photo.jpg'
+
+    created = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'category': 'Dairy',
+        'image_ref': storage_ref,
+    })
+    assert created.status_code == 201, created.text
+    item = created.json()
+    assert item['image_ref'] == storage_ref
+
+    remote = 'https://images.openfoodfacts.org/images/products/test.jpg'
+    updated = client.patch(
+        '/api/v1/items/' + item['id'],
+        headers=headers,
+        json={'image_ref': remote},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['image_ref'] == remote
+
+    cleared = client.patch(
+        '/api/v1/items/' + item['id'],
+        headers=headers,
+        json={'image_ref': None},
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()['image_ref'] is None
+
+    for invalid in [
+        '',
+        'http://example.com/photo.jpg',
+        '/absolute/path.jpg',
+        '../escape.jpg',
+        f'{OTHER}/foreign-photo.jpg',
+    ]:
+        response = client.patch(
+            '/api/v1/items/' + item['id'],
+            headers=headers,
+            json={'image_ref': invalid},
+        )
+        assert response.status_code in (400, 422), (invalid, response.text)
+
+    identity['id'] = OUTSIDER
+    assert client.patch(
+        '/api/v1/items/' + item['id'],
+        headers={'X-Household-ID': OTHER},
+        json={'image_ref': f'{OTHER}/attempt.jpg'},
+    ).status_code == 404

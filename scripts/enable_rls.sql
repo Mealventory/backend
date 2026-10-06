@@ -12,7 +12,7 @@ DO $$ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public'
         AND tablename IN ('households','household_members','storage_locations','inventory_items',
-                          'recipes','recipe_ingredients','shopping_list_items','foods','device_push_tokens')) THEN
+                          'recipes','recipe_ingredients','shopping_list_items','household_stores','foods','device_push_tokens')) THEN
         RAISE EXCEPTION 'Existing policies require explicit review before this migration';
     END IF;
 END $$;
@@ -50,6 +50,9 @@ REVOKE ALL ON TABLE public.recipe_ingredients FROM PUBLIC, anon, authenticated;
 ALTER TABLE public.shopping_list_items ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.shopping_list_items FROM PUBLIC, anon, authenticated;
 
+ALTER TABLE public.household_stores ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.household_stores FROM PUBLIC, anon, authenticated;
+
 ALTER TABLE public.foods ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.foods FROM PUBLIC, anon, authenticated;
 
@@ -71,6 +74,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.recipe_ingredients TO authenticat
 CREATE POLICY recipe_ingredients_member ON public.recipe_ingredients TO authenticated USING (mealventory_private.is_household_member((SELECT auth.uid()), household_id)) WITH CHECK (mealventory_private.is_household_member((SELECT auth.uid()), household_id));
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.shopping_list_items TO authenticated;
 CREATE POLICY shopping_list_items_member ON public.shopping_list_items TO authenticated USING (mealventory_private.is_household_member((SELECT auth.uid()), household_id)) WITH CHECK (mealventory_private.is_household_member((SELECT auth.uid()), household_id));
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.household_stores TO authenticated;
+CREATE POLICY household_stores_member ON public.household_stores TO authenticated USING (mealventory_private.is_household_member((SELECT auth.uid()), household_id)) WITH CHECK (mealventory_private.is_household_member((SELECT auth.uid()), household_id));
 GRANT SELECT ON public.foods TO authenticated;
 CREATE POLICY foods_read ON public.foods FOR SELECT TO authenticated USING ((SELECT auth.uid()) IS NOT NULL);
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.device_push_tokens TO authenticated;

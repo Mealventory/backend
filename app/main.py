@@ -1,8 +1,15 @@
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from app.api.router import api_router
+from app.core.auth_errors import (
+    AuthProblem,
+    http_problem_handler,
+    validation_problem_handler,
+)
 from app.core.config import settings
-from app.core.auth_errors import AuthProblem, auth_problem_handler
 
 
 app = FastAPI(
@@ -10,7 +17,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_exception_handler(AuthProblem, auth_problem_handler)
+app.add_exception_handler(StarletteHTTPException, http_problem_handler)
+app.add_exception_handler(AuthProblem, http_problem_handler)
+app.add_exception_handler(RequestValidationError, validation_problem_handler)
 
 # Explicit origins support credentialed web requests; development wildcard does not.
 app.add_middleware(

@@ -1,6 +1,6 @@
 from uuid import UUID
 from app.core.dependencies import get_current_household
-from app.core.auth_errors import AuthProblem
+from app.core.auth_errors import AuthProblem, problem_response
 from typing import Annotated, List, Literal
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
@@ -11,27 +11,23 @@ from app.schemas.inventory import InventoryItemOut
 from app.schemas.scan import SampleScanRequest
 from app.services import scan_service
 
-AI_ERROR_SCHEMA = {
-    "type": "object", "required": ["detail"],
-    "properties": {"detail": {"type": "object", "required": ["code", "message", "action"],
-        "properties": {"code": {"type": "string", "enum": ["AI_SERVICE_UNAVAILABLE"]},
-                       "message": {"type": "string"},
-                       "action": {"type": "string", "enum": ["manual_entry"]}}}},
-}
-router = APIRouter(responses={
-    code: {"description": description,
-           "content": {"application/json": {"schema": AI_ERROR_SCHEMA}}}
-    for code, description in (
-        (503, "AI service unavailable; enter items manually or retry shortly"),
-        (504, "AI request timed out; enter items manually or retry shortly"),
-    )
-})
+router = APIRouter(
+    responses={
+        503: problem_response(
+            "AI service unavailable; enter items manually or retry shortly"
+        ),
+        504: problem_response(
+            "AI request timed out; enter items manually or retry shortly"
+        ),
+    }
+)
+
 
 @router.post(
     "/",
     response_model=List[InventoryItemOut],
     responses={
-        422: {"description": "Image type mismatch or no food items detected"},
+        422: problem_response("Image type mismatch or no food items detected"),
     },
 )
 async def scan_and_add(
@@ -47,10 +43,10 @@ async def scan_and_add(
 @router.post(
 	"/sample",
 	responses={
-		400: {"description": "Invalid request data"},
-		403: {"description": "Sample scan route disabled"},
-		404: {"description": "Sample image or user not found"},
-		422: {"description": "Image mismatch or no food detected"},
+		400: problem_response("Invalid request data"),
+		403: problem_response("Sample scan route disabled"),
+		404: problem_response("Sample image or user not found"),
+		422: problem_response("Image mismatch or no food detected"),
 	},
 )
 async def scan_from_sample(

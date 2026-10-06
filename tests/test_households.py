@@ -20,6 +20,13 @@ def join(client, code, user=OTHER):
                        json={'invite_code': code})
 
 
+def rotate(client, household_id, user=UID):
+    return client.post(
+        f'/api/v1/households/{household_id}/invite-code/rotate',
+        headers=headers(token(claims(sub=user))),
+    )
+
+
 def test_create_owner_and_list(secured_client, db):
     household = create(secured_client, '  Smith Family  ')
     assert household['name'] == 'Smith Family'
@@ -100,6 +107,60 @@ def test_code_collision_retries_and_exhaustion(secured_client, db):
     assert db.query(Household).count() == 2
 
 
+
+def test_owner_rotates_code_revokes_old_and_preserves_members(secured_client, db):
+    hh = create(secured_client)
+    old_code = hh['invite_code']
+    assert join(secured_client, old_code).status_code == 200
+
+    with patch('app.services.household_service.generate_invite_code', return_value='NEW123'):
+        response = rotate(secured_client, hh['id'])
+
+    assert response.status_code == 200, response.text
+    rotated = response.json()
+    assert rotated['invite_code'] == 'NEW123'
+    assert rotated['role'] == 'owner'
+    assert rotated['id'] == hh['id']
+
+    assert db.get(HouseholdMember, (hh['id'], UID)).role == 'owner'
+    assert db.get(HouseholdMember, (hh['id'], OTHER)).role == 'member'
+    assert join(secured_client, old_code, THIRD).status_code == 404
+    assert join(secured_client, 'NEW123', THIRD).status_code == 200
+    assert db.get(HouseholdMember, (hh['id'], THIRD)).role == 'member'
+
+
+def test_non_owner_cannot_rotate_invite_code(secured_client, db):
+    hh = create(secured_client)
+    old_code = hh['invite_code']
+    assert join(secured_client, old_code).status_code == 200
+
+    response = rotate(secured_client, hh['id'], OTHER)
+
+    assert response.status_code == 403
+    assert db.get(Household, hh['id']).invite_code == old_code
+
+
+def test_rotation_retries_collisions_and_preserves_code_on_exhaustion(secured_client, db):
+    with patch('app.services.household_service.generate_invite_code', return_value='AAA111'):
+        first = create(secured_client, 'First')
+    with patch('app.services.household_service.generate_invite_code', return_value='BBB222'):
+        second = create(secured_client, 'Second')
+
+    with patch(
+        'app.services.household_service.generate_invite_code',
+        side_effect=['BBB222', 'CCC333'],
+    ):
+        response = rotate(secured_client, first['id'])
+    assert response.status_code == 200
+    assert response.json()['invite_code'] == 'CCC333'
+
+    with patch('app.services.household_service.generate_invite_code', return_value='BBB222'):
+        response = rotate(secured_client, first['id'])
+    assert response.status_code == 503
+    assert db.get(Household, first['id']).invite_code == 'CCC333'
+    assert db.get(Household, second['id']).invite_code == 'BBB222'
+
+
 def test_owner_insert_failure_rolls_back_household(secured_client, db):
     def fail(*args):
         raise RuntimeError('simulated owner insert failure')
@@ -116,6 +177,7 @@ def test_owner_insert_failure_rolls_back_household(secured_client, db):
  ('post','/api/v1/households',{'name':'Home'}),
  ('post','/api/v1/households/join',{'invite_code':'ABC123'}),
  ('get','/api/v1/households/me',None),
+ ('post',f'/api/v1/households/{UID}/invite-code/rotate',None),
  ('get',f'/api/v1/households/{UID}/members',None),
  ('patch',f'/api/v1/households/{UID}/members/{OTHER}',{'role':'owner'}),
  ('delete',f'/api/v1/households/{UID}/members/{OTHER}',None),

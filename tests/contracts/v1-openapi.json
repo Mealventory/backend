@@ -1377,7 +1377,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeSuggestionsResponse"
+                }
               }
             }
           },
@@ -3532,6 +3534,135 @@
           "role"
         ],
         "title": "MemberRoleUpdate"
+      },
+      "RecipeInventoryItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "days_until_expiry": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Until Expiry"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RecipeInventoryItem"
+      },
+      "RecipeSuggestion": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "uses_priority_items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uses Priority Items"
+          },
+          "uses_other_items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Uses Other Items"
+          },
+          "optional_pantry_basics": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Optional Pantry Basics"
+          },
+          "prep_time_minutes": {
+            "type": "integer",
+            "maximum": 1440,
+            "minimum": 0,
+            "title": "Prep Time Minutes"
+          },
+          "cook_time_minutes": {
+            "type": "integer",
+            "maximum": 1440,
+            "minimum": 0,
+            "title": "Cook Time Minutes"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "Easy",
+              "Medium",
+              "Hard"
+            ],
+            "title": "Difficulty"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 30,
+            "minItems": 1,
+            "title": "Steps"
+          },
+          "waste_reduction_reason": {
+            "type": "string",
+            "title": "Waste Reduction Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "uses_priority_items",
+          "uses_other_items",
+          "optional_pantry_basics",
+          "prep_time_minutes",
+          "cook_time_minutes",
+          "difficulty",
+          "steps",
+          "waste_reduction_reason"
+        ],
+        "title": "RecipeSuggestion"
+      },
+      "RecipeSuggestionsResponse": {
+        "properties": {
+          "recipes": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeSuggestion"
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Recipes"
+          },
+          "priority_items": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeInventoryItem"
+            },
+            "type": "array",
+            "title": "Priority Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RecipeSuggestionsResponse"
       },
       "SampleScanRequest": {
         "properties": {

@@ -106,3 +106,29 @@ def test_transition_timestamp_and_rejected_repeat(postgres_engine):
     with Session(postgres_engine) as phone:
         assert inventory.list_items(phone, home.id) == []
         assert inventory.list_items(phone, home.id, status='discarded')[0]['id'] == row['id']
+
+
+def test_low_stock_tracking_uses_persisted_reference_quantity(postgres_engine):
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Low stock')
+        row = inventory.add_item(db, home.id, ItemCreate(
+            name='Flour',
+            quantity='2',
+            unit='kg',
+        ))
+        from sqlalchemy import text
+        assert str(db.execute(
+            text('SELECT initial_quantity FROM inventory_items WHERE id=:id'),
+            {'id': row['id']},
+        ).scalar_one()) == '2.000'
+        assert str(row['remaining_percent']) == '100.0'
+        assert row['is_low_stock'] is False
+
+        low = inventory.update_item(
+            db,
+            home.id,
+            row['id'],
+            ItemUpdate(quantity='0.2'),
+        )
+        assert str(low['remaining_percent']) == '10.0'
+        assert low['is_low_stock'] is True

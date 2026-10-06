@@ -14,7 +14,7 @@ pytestmark = pytest.mark.skipif(os.getenv('RUN_POSTGRES_TESTS') != '1',
                                 reason='Set RUN_POSTGRES_TESTS=1 to run isolated Docker PostgreSQL 16 tests')
 MIGRATION = Path(__file__).resolve().parents[1] / 'scripts/init_db.sql'
 TABLES = ['households', 'household_members', 'storage_locations', 'foods',
-          'inventory_items', 'recipes', 'recipe_ingredients', 'shopping_list_items', 'device_push_tokens']
+          'inventory_items', 'recipes', 'recipe_ingredients', 'shopping_list_items', 'household_stores', 'device_push_tokens']
 
 
 def docker(*args, input=None):
@@ -82,6 +82,8 @@ INSERT INTO recipe_ingredients (household_id,recipe_id,food_id,quantity)
  VALUES ('00000000-0000-0000-0000-000000000001','40000000-0000-0000-0000-000000000001','30000000-0000-0000-0000-000000000001',1);
 INSERT INTO shopping_list_items (household_id,name)
  VALUES ('00000000-0000-0000-0000-000000000001','Bread');
+INSERT INTO household_stores (household_id,name,website_url,sort_order)
+ VALUES ('00000000-0000-0000-0000-000000000001','Costco','https://www.costco.ca/',0);
 INSERT INTO device_push_tokens (user_id,token,platform)
  VALUES ('10000000-0000-0000-0000-000000000001','test-token','ios');
 """
@@ -95,12 +97,12 @@ def test_creates_all_tables_enums_and_required_indices(schema):
     for index,columns in [('idx_inventory_tenant','(household_id, status, expiry_date)'),
                           ('idx_household_members','(user_id, household_id)')]:
         assert columns in schema(f"SELECT indexdef FROM pg_indexes WHERE indexname='{index}'").stdout
-    assert schema("SELECT count(*) FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='p'").stdout.strip()=='9'
+    assert schema("SELECT count(*) FROM pg_constraint WHERE connamespace='public'::regnamespace AND contype='p'").stdout.strip()=='10'
 
 
 def test_defaults_and_full_relational_graph(schema):
     schema(SEED)
-    assert schema('SELECT status,quantity,unit FROM inventory_items').stdout.strip()=='active|1.000|units'
+    assert schema('SELECT status,quantity,quantity_tracking_enabled,initial_quantity,low_stock_threshold_percent,unit FROM inventory_items').stdout.strip()=='active|1.000|f||10.00|units'
     assert schema("SELECT count(*) FROM households WHERE created_at IS NOT NULL AND updated_at IS NOT NULL").stdout.strip()=='2'
     assert schema("INSERT INTO foods(name) VALUES ('Eggs') RETURNING id IS NOT NULL").stdout.strip()=='t'
 
@@ -126,6 +128,10 @@ def test_foreign_keys_reject_invalid_links(schema,table,assignment):
 @pytest.mark.parametrize('statement',[
  "UPDATE inventory_items SET quantity=-1",
  "UPDATE inventory_items SET quantity='NaN'",
+ "UPDATE inventory_items SET initial_quantity=0",
+ "UPDATE inventory_items SET low_stock_threshold_percent=0",
+ "UPDATE inventory_items SET low_stock_threshold_percent=101",
+ "UPDATE inventory_items SET quantity_tracking_enabled=true, initial_quantity=NULL",
  "UPDATE shopping_list_items SET quantity=0",
  "UPDATE recipe_ingredients SET quantity=-1",
  "UPDATE households SET invite_code='bad'",
@@ -146,7 +152,7 @@ def test_delete_behaviour(schema):
     schema('DELETE FROM foods',ok=False)
     schema('DELETE FROM storage_locations',ok=False)
     schema("DELETE FROM households WHERE name='A'")
-    for table in ['inventory_items','recipes','recipe_ingredients','shopping_list_items','storage_locations']:
+    for table in ['inventory_items','recipes','recipe_ingredients','shopping_list_items','household_stores','storage_locations']:
         assert schema(f'SELECT count(*) FROM {table}').stdout.strip()=='0'
     assert schema('SELECT count(*) FROM foods').stdout.strip()=='1'
     assert schema('SELECT count(*) FROM device_push_tokens').stdout.strip()=='1'
@@ -157,7 +163,7 @@ def test_rerun_fails_without_destroying_data(schema):
     schema(SEED)
     schema(MIGRATION.read_text(),ok=False)
     assert schema('SELECT count(*) FROM households').stdout.strip()=='2'
-    assert schema("SELECT count(*) FROM pg_tables WHERE schemaname='public'").stdout.strip()=='9'
+    assert schema("SELECT count(*) FROM pg_tables WHERE schemaname='public'").stdout.strip()=='10'
 
 
 def test_mid_migration_failure_rolls_back(database):
