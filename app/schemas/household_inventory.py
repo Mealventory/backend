@@ -25,6 +25,7 @@ class ItemCreate(BaseModel):
     storage_location_id: UUID | None = None
 
     storage_zone: StorageZone = 'pantry'
+    image_ref: str | None = None
 
     @model_validator(mode='after')
     def validate_storage(self):
@@ -43,6 +44,7 @@ class ItemUpdate(BaseModel):
     unit: str | None = Field(default=None, min_length=1, max_length=80)
     expiry_date: date | None = None
     storage_location_id: UUID | None = None
+    image_ref: str | None = None
 
     @model_validator(mode='after')
     def validate_patch(self):
