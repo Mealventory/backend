@@ -1,10 +1,10 @@
 from uuid import UUID
 from app.core.dependencies import get_current_household
 from app.core.auth_errors import AuthProblem, problem_response
+from app.core.rate_limit import limit_scans
 from typing import Annotated, List, Literal
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
-from app.dependencies.auth import get_current_user
 from app.dependencies.database import get_db
 from app.schemas.user import UserOut
 from app.schemas.inventory import InventoryItemOut
@@ -19,6 +19,7 @@ router = APIRouter(
         504: problem_response(
             "AI request timed out; enter items manually or retry shortly"
         ),
+        429: problem_response("Too many scan requests"),
     }
 )
 
@@ -33,7 +34,7 @@ router = APIRouter(
 async def scan_and_add(
 	mode: Annotated[Literal["food", "receipt", "tag", "recipt"], Form(...)],
 	file: Annotated[UploadFile, File(...)],
-	current_user: Annotated[UserOut, Depends(get_current_user)],
+	current_user: Annotated[UserOut, Depends(limit_scans)],
 	household_id: Annotated[UUID, Depends(get_current_household)],
 	db: Annotated[Session, Depends(get_db)],
 ):
@@ -51,7 +52,7 @@ async def scan_and_add(
 )
 async def scan_from_sample(
 	payload: SampleScanRequest,
-	current_user: Annotated[UserOut, Depends(get_current_user)],
+	current_user: Annotated[UserOut, Depends(limit_scans)],
 	household_id: Annotated[UUID, Depends(get_current_household)],
 	db: Annotated[Session, Depends(get_db)],
 ):
@@ -67,7 +68,7 @@ async def scan_from_sample(
 async def preview_scan(
     mode: Annotated[Literal['food', 'receipt', 'tag'], Form(...)],
     file: Annotated[UploadFile, File(...)],
-    current_user: Annotated[UserOut, Depends(get_current_user)],
+    current_user: Annotated[UserOut, Depends(limit_scans)],
     household_id: Annotated[UUID, Depends(get_current_household)],
 ):
     """Recognize an image for review without saving inventory items."""

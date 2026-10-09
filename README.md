@@ -66,14 +66,14 @@ See [database migration setup, macOS/Windows commands, downgrade guidance, and P
 | POST | `/api/v1/users/register` | Optional legacy profile sync |
 | GET | `/api/v1/users/me` | Current user |
 | POST | `/api/v1/households` | Create household and owner membership |
-| POST | `/api/v1/households/join` | Join by invite code |
+| POST | `/api/v1/households/join` | Join by invite code (rate limited) |
 | GET | `/api/v1/households/me` | List your households |
 | POST | `/api/v1/households/{household_id}/invite-code/rotate` | Owner-only invite code rotation/revocation |
 | GET | `/api/v1/households/{household_id}/members` | List household members |
 | PATCH, DELETE | `/api/v1/households/{household_id}/members/{user_id}` | Manage roles or remove/leave |
 | GET, POST | `/api/v1/inventory/` | List or add inventory |
 | DELETE | `/api/v1/inventory/{item_id}` | Delete owned item |
-| POST | `/api/v1/scan/` | Scan and add inventory |
+| POST | `/api/v1/scan/` | Scan and add inventory (rate limited) |
 | POST | `/api/v1/scan/sample` | Optional development sample scan |
 | GET | `/api/v1/recipes/` | Suggest recipes from inventory |
 | POST | `/api/v1/food/predict-expiry/{food_id}` | Predict expiry |

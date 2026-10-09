@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.auth_errors import PROBLEM_SCHEMA
 from app.core.dependencies import get_current_user
+from app.core.rate_limit import limit_invite_joins
 from app.dependencies.database import get_db
 from app.schemas.household import (
     HouseholdCreate,
@@ -29,6 +30,7 @@ router = APIRouter(
         for code, description in [
             (404, "Invite code or member not found"),
             (409, "At least one owner must remain"),
+            (429, "Too many join attempts"),
         ]
     }
 )
@@ -51,7 +53,7 @@ def create_household(
 @router.post("/join", response_model=HouseholdOut)
 def join_household(
     payload: HouseholdJoin,
-    user: UserOut = Depends(get_current_user),
+    user: UserOut = Depends(limit_invite_joins),
     db: Session = Depends(get_db),
 ):
     """Join using an invite code. Existing members keep their role."""

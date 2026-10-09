@@ -16,6 +16,14 @@ from app.dependencies.database import get_db
 from app.dependencies.auth import get_current_user, get_current_household
 from app.models.household_member import HouseholdMember
 from uuid import UUID
+from app.core.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture
