@@ -16,6 +16,14 @@ from app.dependencies.database import get_db
 from app.dependencies.auth import get_current_user, get_current_household
 from app.models.household_member import HouseholdMember
 from uuid import UUID
+from app.core.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    limiter.reset()
+    yield
+    limiter.reset()
 
 
 @pytest.fixture
@@ -41,3 +49,20 @@ def client(db, monkeypatch):
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def secured_client(db):
+    def database():
+        yield db
+
+    app.dependency_overrides[get_db] = database
+    app.dependency_overrides[get_current_household] = (
+        lambda: UUID('00000000-0000-0000-0000-000000000001')
+    )
+
+    with TestClient(app) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+

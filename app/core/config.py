@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     EXPO_PUSH_ACCESS_TOKEN: SecretStr | None = None
     EXPO_PUSH_TIMEOUT_SECONDS: float = Field(default=10.0, gt=0, le=30)
 
+    # In-process rate limits for invite guessing and AI-backed scans.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_JOIN_ATTEMPTS: int = Field(default=10, ge=1)
+    RATE_LIMIT_JOIN_WINDOW_SECONDS: float = Field(default=60.0, gt=0, le=3600)
+    RATE_LIMIT_SCAN_ATTEMPTS: int = Field(default=20, ge=1)
+    RATE_LIMIT_SCAN_WINDOW_SECONDS: float = Field(default=60.0, gt=0, le=3600)
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
