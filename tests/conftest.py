@@ -49,3 +49,20 @@ def client(db, monkeypatch):
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+
+@pytest.fixture
+def secured_client(db):
+    def database():
+        yield db
+
+    app.dependency_overrides[get_db] = database
+    app.dependency_overrides[get_current_household] = (
+        lambda: UUID('00000000-0000-0000-0000-000000000001')
+    )
+
+    with TestClient(app) as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
