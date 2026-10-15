@@ -292,3 +292,149 @@ def test_item_image_reference_create_update_clear_and_household_scope(inventory_
         headers={'X-Household-ID': OTHER},
         json={'image_ref': f'{OTHER}/attempt.jpg'},
     ).status_code == 404
+
+
+def test_add_item_stacks_identical_item(inventory_api):
+    client, identity, engine = inventory_api
+    headers = {'X-Household-ID': HOME}
+
+    first = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Apples',
+        'quantity': 2,
+        'unit': 'pieces',
+        'expiry_date': '2026-10-25',
+        'storage_zone': 'fridge',
+    })
+    assert first.status_code == 201, first.text
+    first_item = first.json()
+    assert float(first_item['quantity']) == 2.0
+
+    # Post identical item with whitespace and case variations
+    second = client.post('/api/v1/items', headers=headers, json={
+        'name': ' apples  ',
+        'quantity': 3,
+        'unit': ' pieces ',
+        'expiry_date': '2026-10-25',
+        'storage_zone': 'fridge',
+    })
+    assert second.status_code == 201, second.text
+    second_item = second.json()
+
+    assert second_item['id'] == first_item['id']
+    assert float(second_item['quantity']) == 5.0
+
+    with engine.connect() as c:
+        initial = c.execute(text('SELECT initial_quantity FROM inventory_items WHERE id = :id'), {'id': second_item['id']}).scalar()
+        assert float(initial) == 5.0
+
+    # Verify only 1 item exists in DB
+    items = client.get('/api/v1/items', headers=headers).json()
+    assert len(items) == 1
+    assert items[0]['id'] == first_item['id']
+    assert float(items[0]['quantity']) == 5.0
+
+
+def test_add_item_does_not_stack_when_attributes_differ(inventory_api):
+    client, identity, engine = inventory_api
+    headers = {'X-Household-ID': HOME}
+
+    base = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'quantity': 1,
+        'unit': 'liters',
+        'expiry_date': '2026-10-20',
+        'storage_zone': 'fridge',
+    })
+    assert base.status_code == 201
+
+    # Differing expiry date
+    diff_expiry = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'quantity': 1,
+        'unit': 'liters',
+        'expiry_date': '2026-10-25',
+        'storage_zone': 'fridge',
+    })
+    assert diff_expiry.status_code == 201
+    assert diff_expiry.json()['id'] != base.json()['id']
+
+    # Differing unit
+    diff_unit = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'quantity': 1,
+        'unit': 'bottles',
+        'expiry_date': '2026-10-20',
+        'storage_zone': 'fridge',
+    })
+    assert diff_unit.status_code == 201
+    assert diff_unit.json()['id'] != base.json()['id']
+
+    # Differing zone
+    diff_zone = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Milk',
+        'quantity': 1,
+        'unit': 'liters',
+        'expiry_date': '2026-10-20',
+        'storage_zone': 'pantry',
+    })
+    assert diff_zone.status_code == 201
+    assert diff_zone.json()['id'] != base.json()['id']
+
+    items = client.get('/api/v1/items', headers=headers).json()
+    assert len(items) == 4
+
+
+def test_add_item_does_not_stack_with_inactive_items(inventory_api):
+    client, identity, engine = inventory_api
+    headers = {'X-Household-ID': HOME}
+
+    created = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Bananas',
+        'quantity': 3,
+        'unit': 'pieces',
+    })
+    assert created.status_code == 201
+    item_id = created.json()['id']
+
+    # Mark consumed/deleted
+    del_resp = client.delete(f'/api/v1/items/{item_id}', headers=headers)
+    assert del_resp.status_code == 204
+
+    # Add again - should create a fresh active item, not update the deleted one
+    recreated = client.post('/api/v1/items', headers=headers, json={
+        'name': 'Bananas',
+        'quantity': 2,
+        'unit': 'pieces',
+    })
+    assert recreated.status_code == 201
+    assert recreated.json()['id'] != item_id
+    assert float(recreated.json()['quantity']) == 2.0
+
+
+def test_batch_add_intra_batch_and_existing_stacking(inventory_api):
+    client, identity, engine = inventory_api
+    headers = {'X-Household-ID': HOME}
+
+    batch_payload = [
+        {'name': 'Greek Yogurt', 'quantity': 1, 'unit': 'tubs', 'storage_zone': 'fridge'},
+        {'name': 'Greek Yogurt', 'quantity': 2, 'unit': 'tubs', 'storage_zone': 'fridge'},
+        {'name': 'Eggs', 'quantity': 6, 'unit': 'pieces', 'storage_zone': 'fridge'},
+    ]
+    batch_resp = client.post('/api/v1/items/batch', headers=headers, json=batch_payload)
+    assert batch_resp.status_code == 201, batch_resp.text
+    rows = batch_resp.json()
+    # Batch collapses intra-batch duplicates into 1 item
+    assert len(rows) == 2
+
+    yogurt = next(r for r in rows if r['name'] == 'Greek Yogurt')
+    assert float(yogurt['quantity']) == 3.0
+
+    # Add another batch that stacks into the existing yogurt
+    batch_resp2 = client.post('/api/v1/items/batch', headers=headers, json=[
+        {'name': 'Greek Yogurt', 'quantity': 1.5, 'unit': 'tubs', 'storage_zone': 'fridge'},
+    ])
+    assert batch_resp2.status_code == 201
+    rows2 = batch_resp2.json()
+    assert len(rows2) == 1
+    assert rows2[0]['id'] == yogurt['id']
+    assert float(rows2[0]['quantity']) == 4.5
