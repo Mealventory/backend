@@ -52,8 +52,7 @@ def secured_client(client, db, monkeypatch):
 
 @pytest.mark.parametrize("method,path", [
     ("get", "/api/v1/users/me"), ("post", "/api/v1/users/register"),
-    ("get", "/api/v1/inventory/"), ("post", "/api/v1/inventory/"),
-    ("delete", "/api/v1/inventory/1"), ("get", "/api/v1/recipes/"),
+    ("get", "/api/v1/recipes/"),
     ("post", "/api/v1/scan/"), ("post", "/api/v1/scan/sample"),
     ("post", "/api/v1/food/predict-expiry/1"),
 ])
@@ -101,17 +100,17 @@ def test_verified_profile_does_not_require_legacy_registration(secured_client, d
 
 @pytest.mark.parametrize("household,status", [(None,400), ("bad",400), (OTHER_HOME,403)])
 def test_household_header_and_membership(secured_client, household, status):
-    response = secured_client.get("/api/v1/inventory/", headers=headers(household=household))
+    response = secured_client.get("/api/v1/recipes/saved", headers=headers(household=household))
     assert response.status_code == status
     assert response.json()["status"] == status
     assert response.headers["content-type"] == "application/problem+json"
 
 
 def test_own_membership_and_revocation(secured_client, db):
-    assert secured_client.get("/api/v1/inventory/", headers=headers()).json() == []
-    assert secured_client.get("/api/v1/inventory/", headers=headers(token(claims(sub=OTHER)))).status_code == 403
+    assert secured_client.get("/api/v1/recipes/saved", headers=headers()).json() == []
+    assert secured_client.get("/api/v1/recipes/saved", headers=headers(token(claims(sub=OTHER)))).status_code == 403
     db.query(HouseholdMember).filter_by(user_id=UID).delete(); db.commit()
-    assert secured_client.get("/api/v1/inventory/", headers=headers()).status_code == 403
+    assert secured_client.get("/api/v1/recipes/saved", headers=headers()).status_code == 403
 
 
 def test_sample_cannot_target_another_user(secured_client, monkeypatch):
@@ -153,15 +152,11 @@ def test_jwks_outage_fails_closed(secured_client, monkeypatch):
     assert response.headers["content-type"] == "application/problem+json"
 
 
-def test_real_token_registration_and_legacy_inventory(secured_client, db):
+def test_real_token_registration_and_legacy_inventory_retired(secured_client, db):
     auth = headers(token(claims(email="new@example.com")))
     for _ in range(2):
         response = secured_client.post("/api/v1/users/register", headers=auth)
         assert response.status_code == 201, response.text
         assert response.json() == {"id": UID, "email": "new@example.com"}
-    response = secured_client.post("/api/v1/inventory/", headers=auth, json={"food_id": 1})
-    assert response.status_code == 201, response.text
-    item = response.json()
-    assert item["user_id"] == UID
-    assert secured_client.get("/api/v1/inventory/", headers=auth).json() == [item]
-    assert secured_client.delete(f"/api/v1/inventory/{item['id']}", headers=auth).status_code == 204
+    assert secured_client.get("/api/v1/inventory/", headers=auth).status_code == 404
+    assert secured_client.post("/api/v1/inventory/", headers=auth, json={"food_id": 1}).status_code == 404
