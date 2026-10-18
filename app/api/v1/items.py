@@ -1,5 +1,7 @@
 from uuid import UUID
 from typing import Annotated
+from typing import Literal
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Response, Query, Body
 from sqlalchemy.orm import Session
 from app.core.auth_errors import problem_response
@@ -8,6 +10,15 @@ from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
 from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
+
+class DiscardReasonRequest(BaseModel):
+    reason: Literal[
+        "expired",
+        "spoiled",
+        "bought_too_much",
+        "didnt_like",
+        "other",
+    ]
 
 router = APIRouter(
     responses={
@@ -55,10 +66,23 @@ def consume_item(item_id: UUID, household_id: UUID = Depends(get_current_househo
 
 
 @router.post('/{item_id}/discard', response_model=ItemOut)
-def discard_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
-                 current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Mark an active item discarded without deleting history. Non-active items return 400."""
-    return service.transition_item(db, household_id, item_id, 'discarded', actor=current_user)
+def discard_item(
+    item_id: UUID,
+    payload: DiscardReasonRequest,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark an active item discarded and record the reason."""
+    return service.transition_item(
+        db,
+        household_id,
+        item_id,
+        'discarded',
+        actor=current_user,
+        reason=payload.reason,
+    )
+
 
 
 @router.post('', response_model=ItemOut, status_code=201)

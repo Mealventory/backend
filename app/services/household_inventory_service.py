@@ -196,25 +196,41 @@ def update_item(db, household_id, item_id, patch, actor=None):
         raise
 
 
-def transition_item(db, household_id, item_id, target, actor=None):
+def transition_item(db, household_id, item_id, target, actor=None, reason=None):
     if target not in ('consumed', 'discarded'):
         raise ValueError('Unsupported item transition')
+
+    if target == 'consumed':
+        reason = None
+
     try:
         # Conditional update serializes competing transitions without overwriting history.
         result = db.execute(text('''UPDATE inventory_items SET status = :target
             WHERE id = :id AND household_id = :household_id AND status = 'active' '''),
             dict(target=target, id=str(item_id), household_id=str(household_id)))
+
         row = get_item(db, household_id, item_id)
+
         if result.rowcount == 0:
             raise AuthProblem(400, 'Item is not active')
+
         activity_service.record_event(
-            db, household_id, actor, target, row['name'], entity_id=item_id
+            db,
+            household_id,
+            actor,
+            target,
+            row['name'],
+            entity_id=item_id,
+            reason=reason,
         )
+
         db.commit()
         return row
+
     except Exception:
         db.rollback()
         raise
+
 
 
 def delete_item(db, household_id, item_id, actor=None):
