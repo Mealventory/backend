@@ -3,6 +3,7 @@ import httpx
 from sqlalchemy import text
 from fastapi import HTTPException
 from app.core.config import settings
+from app.core.request_logging import correlation_headers
 from app.services.household_inventory_service import get_item
 from app.schemas.expiry_prediction import ExpiryPredictionOutput
 from app.services.shelf_life_catalogue import catalogue_prediction
@@ -32,7 +33,8 @@ async def predict_expiry(db, household_id, request):
                 response = await client.post(
                     f"{settings.AI_SERVICE_URL.rstrip('/')}/foodkeeper/predict-expiry",
                     json={'name': request.name, 'storage_zone': request.storage_zone,
-                          'purchase_date': request.purchase_date.isoformat()})
+                          'purchase_date': request.purchase_date.isoformat()},
+                    headers=correlation_headers())
                 response.raise_for_status()
                 foodkeeper = response.json()
                 if (foodkeeper.get('predicted_expiry_date')
@@ -80,7 +82,8 @@ async def predict_expiry(db, household_id, request):
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(f"{settings.AI_SERVICE_URL.rstrip('/')}/scan/predict-expiry", params={
                 'name': request.name, 'avg_shelf_life_days': baseline,
-                'purchase_date': request.purchase_date.isoformat(), 'temperature': temperature, 'humidity': humidity})
+                'purchase_date': request.purchase_date.isoformat(), 'temperature': temperature, 'humidity': humidity},
+                headers=correlation_headers())
             response.raise_for_status()
             predicted = date.fromisoformat(response.json()['predicted_expiry_date'])
             days = (predicted-request.purchase_date).days
