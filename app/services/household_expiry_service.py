@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 import httpx
 from sqlalchemy import text
 from fastapi import HTTPException
@@ -16,9 +16,50 @@ async def predict_expiry(db, household_id, request):
     def unavailable(message):
         return ExpiryPredictionOutput(source='unavailable', explanation=message, purchase_date=request.purchase_date)
     guidance = catalogue_prediction(request)
+    # Keep curated matches and condition prompts authoritative. When the local
+    # guide knows the food but has no freezer entry, try FoodKeeper's freezer
+    # quality window before returning its narrower fridge-only message.
+    if guidance is not None and (
+            guidance.source == 'catalogue' or guidance.food_state_options
+            or request.storage_zone != 'freezer'):
+        return guidance
+    # USDA FoodKeeper is an offline dataset served by the AI service. It uses
+    # the request's purchase date and the selected storage zone; unlike the
+    # experimental model it also supports freezer quality windows.
+    if request.storage_zone in ('pantry', 'fridge', 'freezer'):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.post(
+                    f"{settings.AI_SERVICE_URL.rstrip('/')}/foodkeeper/predict-expiry",
+                    json={'name': request.name, 'storage_zone': request.storage_zone,
+                          'purchase_date': request.purchase_date.isoformat()})
+                response.raise_for_status()
+                foodkeeper = response.json()
+                if (foodkeeper.get('predicted_expiry_date')
+                        and foodkeeper.get('matched_food')
+                        and foodkeeper.get('source_url')):
+                    predicted = date.fromisoformat(foodkeeper['predicted_expiry_date'])
+                    days = int(foodkeeper['shelf_life_days'])
+                    if predicted == request.purchase_date + timedelta(days=days) and days > 0:
+                        return ExpiryPredictionOutput(
+                            predicted_expiry_date=predicted, source='catalogue',
+                            purchase_date=request.purchase_date, baseline_source='catalog',
+                            matched_food=foodkeeper['matched_food'],
+                            source_name=foodkeeper.get('source_name', 'USDA FoodKeeper (FSIS)'),
+                            source_url=foodkeeper['source_url'], shelf_life_days=days,
+                            explanation=(
+                                f"USDA FoodKeeper estimate: {days} days from the purchase date "
+                                f"for {foodkeeper['matched_food']} stored in the {request.storage_zone}. "
+                                "This is storage guidance, not a guarantee of safety. Follow the "
+                                "package date and discard food that shows signs of spoilage."
+                            ),
+                        )
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+            # FoodKeeper is an optional source; keep the established fallback path available.
+            pass
     if guidance is not None:
         return guidance
-    # The checked-in model was trained at 4–25 C; do not extrapolate to frozen food.
+    # The experimental model has no freezer support; USDA estimates above may.
     if request.storage_zone in ('freezer', 'spicerack'):
         return unavailable('Estimates are not available for this storage zone. Use the package date or enter a date manually.')
     baseline = request.avg_shelf_life_days
