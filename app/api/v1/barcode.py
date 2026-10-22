@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 
 from app.core.config import settings
 from app.core.rate_limit import limit_scans
+from app.core.request_logging import correlation_headers
 from app.schemas.user import UserOut
 
 router = APIRouter()
@@ -24,7 +25,8 @@ async def resolve_barcode(
     try:
         async with httpx.AsyncClient(timeout=min(settings.AI_REQUEST_TIMEOUT_SECONDS, 3.0)) as client:
             response = await client.get(
-                f"{settings.AI_SERVICE_URL.rstrip('/')}/barcode/{barcode.strip()}"
+                f"{settings.AI_SERVICE_URL.rstrip('/')}/barcode/{barcode.strip()}",
+                headers=correlation_headers(),
             )
             response.raise_for_status()
             result = response.json()
