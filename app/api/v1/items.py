@@ -1,13 +1,15 @@
 from uuid import UUID
+import re
 from typing import Annotated
-from fastapi import APIRouter, Depends, Response, Query, Body
+from fastapi import APIRouter, Depends, Response, Query, Body, Header
 from sqlalchemy.orm import Session
-from app.core.auth_errors import problem_response
+from app.core.auth_errors import AuthProblem, problem_response
 from app.core.dependencies import get_current_household, get_current_user
 from app.dependencies.database import get_db
 from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
 from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
+from app.services.batch_idempotency_service import save_reviewed_batch_once
 
 router = APIRouter(
     responses={
@@ -34,9 +36,14 @@ def list_items(household_id: UUID = Depends(get_current_household), db: Session 
 @router.post('/batch', response_model=list[ItemOut], status_code=201)
 def add_batch(items: Annotated[list[ItemCreate], Body(min_length=1, max_length=100)],
               household_id: UUID = Depends(get_current_household),
-              current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Persist all confirmed items in one transaction, or none on failure."""
-    return service.add_batch(db, household_id, items, actor=current_user)
+              current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db),
+              idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
+    """Persist confirmed items atomically. An optional key makes retries safe."""
+    if idempotency_key is None:
+        return service.add_batch(db, household_id, items, actor=current_user)
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{15,127}", idempotency_key):
+        raise AuthProblem(400, "Idempotency-Key must contain 16 to 128 ASCII letters, numbers, _ or -")
+    return save_reviewed_batch_once(db, household_id, items, current_user, idempotency_key)
 
 
 @router.patch('/{item_id}', response_model=ItemOut)
