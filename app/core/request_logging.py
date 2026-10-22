@@ -15,6 +15,10 @@ from fastapi import Request
 
 _REQUEST_ID = ContextVar("mealventory_request_id", default=None)
 _LOG = logging.getLogger("mealventory.requests")
+_LOG.setLevel(logging.INFO)
+# Ensure INFO events reach the process logs even if the root logger is unconfigured.
+if not _LOG.hasHandlers():
+    _LOG.addHandler(logging.StreamHandler())
 _ALLOWED_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
 
 
