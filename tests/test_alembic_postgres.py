@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261004_0007"
+HEAD = "20261022_0008"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -45,6 +45,7 @@ REQUIRED_TABLES = {
     "household_saved_recipes",
     "household_recipe_completions",
     "household_activity_events",
+    "batch_idempotency_records",
 }
 
 
