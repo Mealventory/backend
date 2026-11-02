@@ -19,6 +19,14 @@ def predictor(monkeypatch):
 def payload(**kwargs):
     return dict(name='Uncatalogued food', storage_zone='fridge', purchase_date=str(date.today()), avg_shelf_life_days=7, **kwargs)
 
+
+def assert_model_not_awaited(predictor):
+    """Allow the FoodKeeper catalogue lookup while preventing experimental model calls."""
+    model_calls = [call for call in predictor.post.await_args_list
+                   if call.args and call.args[0].endswith('/scan/predict-expiry')]
+    assert not model_calls
+
+
 def test_prediction_preserves_date_until_explicit_save(inventory_api,predictor):
     client,identity,_=inventory_api
     headers={'X-Household-ID':HOME}
@@ -53,14 +61,14 @@ def test_unsupported_zone_returns_no_estimate(inventory_api,predictor,zone):
     body=payload();body['storage_zone']=zone
     result=client.post('/api/v1/items/predict-expiry',headers={'X-Household-ID':HOME},json=body)
     assert result.json()['predicted_expiry_date'] is None
-    predictor.post.assert_not_awaited()
+    assert_model_not_awaited(predictor)
 
 def test_unknown_baseline_is_not_fabricated(inventory_api,predictor):
     client,_,_=inventory_api
     body=payload();body.pop('avg_shelf_life_days')
     result=client.post('/api/v1/items/predict-expiry',headers={'X-Household-ID':HOME},json=body)
     assert result.json()['source']=='unavailable'
-    predictor.post.assert_not_awaited()
+    assert_model_not_awaited(predictor)
 
 @pytest.mark.parametrize('broken',[None,'not-a-date','2099-01-01'])
 def test_bad_model_outputs_do_not_produce_dates(inventory_api,predictor,broken):
@@ -131,7 +139,7 @@ def test_no_guess_for_wrong_condition_zone_or_composite_food(inventory_api, pred
     result = client.post('/api/v1/items/predict-expiry', headers={'X-Household-ID': HOME}, json=body).json()
     assert result['source'] == 'unavailable'
     assert result['predicted_expiry_date'] is None
-    predictor.post.assert_not_awaited()
+    assert_model_not_awaited(predictor)
 
 
 def test_catalogue_preserves_inventory_and_rejects_other_household(inventory_api, predictor):
@@ -198,7 +206,7 @@ def test_branded_oikos_yogurt_requires_condition(inventory_api, predictor, name)
     other = client.post('/api/v1/items/predict-expiry', headers=headers,
                         json={**body, 'name': name + ' frozen dessert'}).json()
     assert other['predicted_expiry_date'] is None
-    predictor.post.assert_not_awaited()
+    assert_model_not_awaited(predictor)
 
 
 @pytest.mark.parametrize('name', ['Mandarin', 'tangerine', 'clementine', 'oranges', 'lemon'])

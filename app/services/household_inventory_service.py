@@ -109,10 +109,11 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
         raise
 
 
-def add_batch(db, household_id, items, actor=None):
+def add_batch(db, household_id, items, actor=None, *, commit=True):
     try:
         rows = [add_item(db, household_id, item, commit=False, actor=actor) for item in items]
-        db.commit()
+        if commit:
+            db.commit()
         return rows
     except Exception:
         db.rollback()
