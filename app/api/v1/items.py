@@ -1,15 +1,37 @@
-from uuid import UUID
 import re
-from typing import Annotated
-from fastapi import APIRouter, Depends, Response, Query, Body, Header
+from typing import Annotated, Literal
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Depends, Header, Query, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
 from app.core.auth_errors import AuthProblem, problem_response
 from app.core.dependencies import get_current_household, get_current_user
 from app.dependencies.database import get_db
-from app.schemas.household_inventory import ItemCreate, ItemOut, ItemUpdate, ItemStatus, StorageZone
+from app.schemas.expiry_prediction import ExpiryPredictionInput, ExpiryPredictionOutput
+from app.schemas.household_inventory import (
+    ItemCreate,
+    ItemOut,
+    ItemUpdate,
+    ItemStatus,
+    StorageZone,
+)
 from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
 from app.services.batch_idempotency_service import save_reviewed_batch_once
+from app.services.household_expiry_service import predict_expiry
+
+
+class DiscardReasonRequest(BaseModel):
+    reason: Literal[
+        "expired",
+        "spoiled",
+        "bought_too_much",
+        "didnt_like",
+        "other",
+    ]
+
 
 router = APIRouter(
     responses={
@@ -24,69 +46,115 @@ router = APIRouter(
 )
 
 
-@router.get('', response_model=list[ItemOut])
-def list_items(household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db),
-               status: ItemStatus = 'active', zone: StorageZone | None = None,
-               expiring_days: int | None = Query(None, ge=0, le=3650),
-               search: str | None = Query(None, max_length=200)):
+@router.get("", response_model=list[ItemOut])
+def list_items(
+    household_id: UUID = Depends(get_current_household),
+    db: Session = Depends(get_db),
+    status: ItemStatus = "active",
+    zone: StorageZone | None = None,
+    expiring_days: int | None = Query(None, ge=0, le=3650),
+    search: str | None = Query(None, max_length=200),
+):
     """List active items for the selected household, for any household member."""
-    return service.list_items(db, household_id, status, zone, expiring_days, search)
+    return service.list_items(
+        db, household_id, status, zone, expiring_days, search
+    )
 
 
-@router.post('/batch', response_model=list[ItemOut], status_code=201)
-def add_batch(items: Annotated[list[ItemCreate], Body(min_length=1, max_length=100)],
-              household_id: UUID = Depends(get_current_household),
-              current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db),
-              idempotency_key: str | None = Header(default=None, alias="Idempotency-Key")):
+@router.post("/batch", response_model=list[ItemOut], status_code=201)
+def add_batch(
+    items: Annotated[list[ItemCreate], Body(min_length=1, max_length=100)],
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
     """Persist confirmed items atomically. An optional key makes retries safe."""
     if idempotency_key is None:
         return service.add_batch(db, household_id, items, actor=current_user)
+
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{15,127}", idempotency_key):
-        raise AuthProblem(400, "Idempotency-Key must contain 16 to 128 ASCII letters, numbers, _ or -")
-    return save_reviewed_batch_once(db, household_id, items, current_user, idempotency_key)
+        raise AuthProblem(
+            400,
+            "Idempotency-Key must contain 16 to 128 ASCII letters, numbers, _ or -",
+        )
+
+    return save_reviewed_batch_once(
+        db, household_id, items, current_user, idempotency_key
+    )
 
 
-@router.patch('/{item_id}', response_model=ItemOut)
-def update_item(item_id: UUID, patch: ItemUpdate,
-                household_id: UUID = Depends(get_current_household),
-                current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.patch("/{item_id}", response_model=ItemOut)
+def update_item(
+    item_id: UUID,
+    patch: ItemUpdate,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Edit active items atomically, including labels, zone and status. Null clears expiry or location."""
     return service.update_item(db, household_id, item_id, patch, actor=current_user)
 
 
-@router.post('/{item_id}/consume', response_model=ItemOut)
-def consume_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
-                 current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.post("/{item_id}/consume", response_model=ItemOut)
+def consume_item(
+    item_id: UUID,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Mark an active item consumed without deleting history. Non-active items return 400."""
-    return service.transition_item(db, household_id, item_id, 'consumed', actor=current_user)
+    return service.transition_item(
+        db, household_id, item_id, "consumed", actor=current_user
+    )
 
 
-@router.post('/{item_id}/discard', response_model=ItemOut)
-def discard_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
-                 current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Mark an active item discarded without deleting history. Non-active items return 400."""
-    return service.transition_item(db, household_id, item_id, 'discarded', actor=current_user)
+@router.post("/{item_id}/discard", response_model=ItemOut)
+def discard_item(
+    item_id: UUID,
+    payload: DiscardReasonRequest,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark an active item discarded and record the reason."""
+    return service.transition_item(
+        db,
+        household_id,
+        item_id,
+        "discarded",
+        actor=current_user,
+        reason=payload.reason,
+    )
 
 
-@router.post('', response_model=ItemOut, status_code=201)
-def add_item(item: ItemCreate, household_id: UUID = Depends(get_current_household),
-             current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.post("", response_model=ItemOut, status_code=201)
+def add_item(
+    item: ItemCreate,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     return service.add_item(db, household_id, item, actor=current_user)
 
 
-@router.delete('/{item_id}', status_code=204)
-def delete_item(item_id: UUID, household_id: UUID = Depends(get_current_household),
-                current_user: UserOut = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.delete("/{item_id}", status_code=204)
+def delete_item(
+    item_id: UUID,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Delete only from the selected household. Owners and members can delete."""
     service.delete_item(db, household_id, item_id, actor=current_user)
     return Response(status_code=204)
 
 
-from app.schemas.expiry_prediction import ExpiryPredictionInput, ExpiryPredictionOutput
-from app.services.household_expiry_service import predict_expiry
-
-@router.post('/predict-expiry', response_model=ExpiryPredictionOutput)
-async def predict_item_expiry(request: ExpiryPredictionInput,
-                              household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+@router.post("/predict-expiry", response_model=ExpiryPredictionOutput)
+async def predict_item_expiry(
+    request: ExpiryPredictionInput,
+    household_id: UUID = Depends(get_current_household),
+    db: Session = Depends(get_db),
+):
     """Suggest an expiry date without saving or replacing the item's existing date."""
     return await predict_expiry(db, household_id, request)
