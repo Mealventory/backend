@@ -67,6 +67,50 @@ def test_member_identity_uses_explicit_name_or_preserves_email_prefix(
     assert _member_identity(email, metadata) == (expected_name, expected_username)
 
 
+def test_member_profiles_are_loaded_from_supabase_auth_without_exposing_emails():
+    from unittest.mock import MagicMock
+    from types import SimpleNamespace
+    from app.services.household_service import _auth_member_profiles
+
+    db = MagicMock()
+    db.get_bind.return_value.dialect.name = 'postgresql'
+    db.execute.side_effect = [
+        SimpleNamespace(scalar=lambda: 'auth.users'),
+        SimpleNamespace(scalar=lambda: True),
+        SimpleNamespace(mappings=lambda: [
+            {
+                'user_id': UID,
+                'email': 'Owner@example.com',
+                'raw_user_meta_data': {'username': 'OwnerName'},
+            },
+            {
+                'user_id': OTHER,
+                'email': 'JohnnyTest@gmail.com',
+                'raw_user_meta_data': {},
+            },
+        ]),
+    ]
+    profiles = _auth_member_profiles(db, [UID, OTHER])
+    assert profiles == {
+        UID: {'display_name': 'OwnerName', 'username': 'OwnerName'},
+        OTHER: {'display_name': 'JohnnyTest', 'username': None},
+    }
+    auth_query = db.execute.call_args_list[2]
+    assert 'FROM auth.users' in str(auth_query.args[0])
+    assert auth_query.args[1]['user_ids'] == [UID, OTHER]
+    assert all('email' not in profile for profile in profiles.values())
+
+
+def test_member_profile_lookup_skips_databases_without_supabase_auth():
+    from unittest.mock import MagicMock
+    from app.services.household_service import _auth_member_profiles
+
+    db = MagicMock()
+    db.get_bind.return_value.dialect.name = 'sqlite'
+    assert _auth_member_profiles(db, [UID]) == {}
+    db.execute.assert_not_called()
+
+
 def test_household_members_show_resolved_names_only_to_fellow_members(
     secured_client, monkeypatch
 ):
