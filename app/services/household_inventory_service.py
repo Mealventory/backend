@@ -254,43 +254,45 @@ def update_item(db, household_id, item_id, patch, actor=None):
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
-        if row['expiry_date'] is None:
-            expiry_clause = 'i.expiry_date IS NULL'
-            expiry_param = {}
-        else:
-            expiry_clause = 'i.expiry_date = :expiry_date'
-            expiry_param = {'expiry_date': row['expiry_date']}
-        if row['storage_location_id'] is None:
-            loc_clause = 'i.storage_location_id IS NULL'
-            loc_param = {}
-        else:
-            loc_clause = 'i.storage_location_id = :location'
-            loc_param = {'location': str(row['storage_location_id'])}
+        dup = None
+        if row['status'] == 'active':
+            if row['expiry_date'] is None:
+                expiry_clause = 'i.expiry_date IS NULL'
+                expiry_param = {}
+            else:
+                expiry_clause = 'i.expiry_date = :expiry_date'
+                expiry_param = {'expiry_date': row['expiry_date']}
+            if row['storage_location_id'] is None:
+                loc_clause = 'i.storage_location_id IS NULL'
+                loc_param = {}
+            else:
+                loc_clause = 'i.storage_location_id = :location'
+                loc_param = {'location': str(row['storage_location_id'])}
 
-        dup = db.execute(text(f'''
-            SELECT i.id, i.quantity, i.initial_quantity, i.image_ref
-            FROM inventory_items i
-            JOIN foods f ON f.id = i.food_id
-            WHERE i.household_id = :household_id
-              AND i.status = 'active'
-              AND i.id != :id
-              AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
-              AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
-              AND {loc_clause}
-              AND {expiry_clause}
-              AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
-            ORDER BY i.created_at, i.id
-            LIMIT 1
-            {lock}
-        '''), {
-            'household_id': str(household_id),
-            'id': str(item_id),
-            'name': row['name'],
-            'category': row['category'] or 'Pantry',
-            'unit': row['unit'],
-            **loc_param,
-            **expiry_param,
-        }).mappings().first()
+            dup = db.execute(text(f'''
+                SELECT i.id, i.quantity, i.initial_quantity, i.image_ref
+                FROM inventory_items i
+                JOIN foods f ON f.id = i.food_id
+                WHERE i.household_id = :household_id
+                  AND i.status = 'active'
+                  AND i.id != :id
+                  AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
+                  AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
+                  AND {loc_clause}
+                  AND {expiry_clause}
+                  AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
+                ORDER BY i.created_at, i.id
+                LIMIT 1
+                {lock}
+            '''), {
+                'household_id': str(household_id),
+                'id': str(item_id),
+                'name': row['name'],
+                'category': row['category'] or 'Pantry',
+                'unit': row['unit'],
+                **loc_param,
+                **expiry_param,
+            }).mappings().first()
         if dup:
             target_id = str(dup['id'])
             inc_qty = Decimal(str(row['quantity']))

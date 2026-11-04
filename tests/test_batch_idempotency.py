@@ -72,7 +72,13 @@ def test_idempotency_scoped_by_verified_household_and_user(keyed_api):
     identity["id"] = OUTSIDER
     third = client.post("/api/v1/items/batch", headers=_headers(OTHER), json=_items())
     assert all(r.status_code == 201 for r in (first, second, third))
-    assert len({first.json()[0]["id"], second.json()[0]["id"], third.json()[0]["id"]}) == 3
+    # MEMBER in HOME has a distinct idempotency user scope, so the batch executes and stacks onto first's item.
+    assert first.json()[0]["id"] == second.json()[0]["id"]
+    assert float(first.json()[0]["quantity"]) == 2.0
+    assert float(second.json()[0]["quantity"]) == 4.0
+    # OUTSIDER in OTHER is a distinct household and creates a separate item.
+    assert third.json()[0]["id"] != first.json()[0]["id"]
+    assert float(third.json()[0]["quantity"]) == 2.0
     # Repeating someone else's key does not bypass authorization.
     denied = client.post("/api/v1/items/batch", headers=_headers(HOME), json=_items())
     assert denied.status_code == 403
@@ -107,5 +113,11 @@ def test_invalid_key_and_unkeyed_legacy_batch(keyed_api):
             "/api/v1/items/batch", headers={"X-Household-ID": HOME}, json=_items()
         ).status_code == 201
     with engine.connect() as db:
-        assert _count(db, "inventory_items") == 2
+        assert _count(db, "inventory_items") == 1
+        qty = db.execute(
+            text("SELECT quantity FROM inventory_items WHERE household_id=:h"),
+            {"h": HOME},
+        ).scalar_one()
+        assert float(qty) == 4.0
+        assert _count(db, "household_activity_events") == 2
         assert _count(db, "batch_idempotency_records") == 0
