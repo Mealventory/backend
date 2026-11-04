@@ -80,11 +80,73 @@ def get_item(db, household_id, item_id):
 
 
 def add_item(db, household_id, item, *, commit=True, actor=None):
-    food_id, item_id = str(uuid4()), str(uuid4())
     try:
         _check_location(db, household_id, item.storage_location_id)
         _check_image_ref_household(household_id, item.image_ref)
         location = str(item.storage_location_id) if item.storage_location_id else _zone_location(db, household_id, item.storage_zone)
+
+        # Check for matching active item to stack into
+        lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
+        if item.expiry_date is None:
+            expiry_clause = 'i.expiry_date IS NULL'
+            expiry_param = {}
+        else:
+            expiry_clause = 'i.expiry_date = :expiry_date'
+            expiry_param = {'expiry_date': item.expiry_date}
+
+        find_query = f'''
+            SELECT i.id, i.quantity, i.initial_quantity, i.image_ref
+            FROM inventory_items i
+            JOIN foods f ON f.id = i.food_id
+            WHERE i.household_id = :household_id
+              AND i.status = 'active'
+              AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
+              AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
+              AND i.storage_location_id = :location
+              AND {expiry_clause}
+              AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
+            LIMIT 1
+            {lock}
+        '''
+        params = {
+            'household_id': str(household_id),
+            'name': item.name,
+            'category': item.category,
+            'location': location,
+            'unit': item.unit,
+            **expiry_param,
+        }
+        existing = db.execute(text(find_query), params).mappings().first()
+        if existing:
+            existing_id = str(existing['id'])
+            inc_qty = Decimal(str(item.quantity))
+            new_qty = Decimal(str(existing['quantity'])) + inc_qty
+            if existing['initial_quantity'] is not None:
+                new_initial = Decimal(str(existing['initial_quantity'])) + inc_qty
+            else:
+                new_initial = new_qty
+            new_image = existing['image_ref'] or item.image_ref
+
+            db.execute(text('''
+                UPDATE inventory_items
+                SET quantity = :quantity,
+                    initial_quantity = :initial_quantity,
+                    image_ref = :image_ref
+                WHERE id = :id AND household_id = :household_id
+            '''), {
+                'id': existing_id,
+                'household_id': str(household_id),
+                'quantity': str(new_qty),
+                'initial_quantity': str(new_initial),
+                'image_ref': new_image,
+            })
+            result = get_item(db, household_id, existing_id)
+            activity_service.record_event(db, household_id, actor, 'added', result['name'], entity_id=existing_id)
+            if commit:
+                db.commit()
+            return result
+
+        food_id, item_id = str(uuid4()), str(uuid4())
         db.execute(text('''INSERT INTO foods (id, name, category, default_unit)
             VALUES (:id, :name, :category, :unit)'''),
                    dict(id=food_id, name=item.name, category=item.category, unit=item.unit))
@@ -111,7 +173,24 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
 
 def add_batch(db, household_id, items, actor=None, *, commit=True):
     try:
-        rows = [add_item(db, household_id, item, commit=False, actor=actor) for item in items]
+        consolidated = []
+        seen = {}
+        for item in items:
+            _check_location(db, household_id, item.storage_location_id)
+            _check_image_ref_household(household_id, item.image_ref)
+            loc = str(item.storage_location_id) if item.storage_location_id else _zone_location(db, household_id, item.storage_zone)
+            key = (item.name.strip().lower(), item.category.strip().lower(), loc, item.expiry_date, item.unit.strip().lower())
+            if key in seen:
+                prev_idx = seen[key]
+                prev_item = consolidated[prev_idx]
+                combined_qty = Decimal(str(prev_item.quantity)) + Decimal(str(item.quantity))
+                img = prev_item.image_ref or item.image_ref
+                consolidated[prev_idx] = prev_item.model_copy(update={'quantity': combined_qty, 'image_ref': img})
+            else:
+                seen[key] = len(consolidated)
+                consolidated.append(item)
+
+        rows = [add_item(db, household_id, item, commit=False, actor=actor) for item in consolidated]
         if commit:
             db.commit()
         return rows
@@ -175,7 +254,75 @@ def update_item(db, household_id, item_id, patch, actor=None):
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
-        quantity_changed = 'quantity' in values
+        if row['expiry_date'] is None:
+            expiry_clause = 'i.expiry_date IS NULL'
+            expiry_param = {}
+        else:
+            expiry_clause = 'i.expiry_date = :expiry_date'
+            expiry_param = {'expiry_date': row['expiry_date']}
+        if row['storage_location_id'] is None:
+            loc_clause = 'i.storage_location_id IS NULL'
+            loc_param = {}
+        else:
+            loc_clause = 'i.storage_location_id = :location'
+            loc_param = {'location': str(row['storage_location_id'])}
+
+        dup = db.execute(text(f'''
+            SELECT i.id, i.quantity, i.initial_quantity, i.image_ref
+            FROM inventory_items i
+            JOIN foods f ON f.id = i.food_id
+            WHERE i.household_id = :household_id
+              AND i.status = 'active'
+              AND i.id != :id
+              AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
+              AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
+              AND {loc_clause}
+              AND {expiry_clause}
+              AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
+            ORDER BY i.created_at, i.id
+            LIMIT 1
+            {lock}
+        '''), {
+            'household_id': str(household_id),
+            'id': str(item_id),
+            'name': row['name'],
+            'category': row['category'] or 'Pantry',
+            'unit': row['unit'],
+            **loc_param,
+            **expiry_param,
+        }).mappings().first()
+        if dup:
+            target_id = str(dup['id'])
+            inc_qty = Decimal(str(row['quantity']))
+            new_qty = Decimal(str(dup['quantity'])) + inc_qty
+            if dup['initial_quantity'] is not None:
+                new_initial = Decimal(str(dup['initial_quantity'])) + inc_qty
+            else:
+                new_initial = new_qty
+            new_image = dup['image_ref'] or row['image_ref']
+            db.execute(text('''
+                UPDATE inventory_items
+                SET quantity = :quantity,
+                    initial_quantity = :initial_quantity,
+                    image_ref = :image_ref
+                WHERE id = :id AND household_id = :household_id
+            '''), {
+                'id': target_id,
+                'household_id': str(household_id),
+                'quantity': str(new_qty),
+                'initial_quantity': str(new_initial),
+                'image_ref': new_image,
+            })
+            db.execute(text('''
+                DELETE FROM inventory_items
+                WHERE id = :id AND household_id = :household_id
+            '''), {
+                'id': str(item_id),
+                'household_id': str(household_id),
+            })
+            item_id = target_id
+            row = get_item(db, household_id, target_id)
+        quantity_changed = 'quantity' in values or bool(dup)
         activity_action = (
             'moved'
             if str(current['storage_location_id'] or '') != str(row['storage_location_id'] or '')
@@ -231,7 +378,6 @@ def transition_item(db, household_id, item_id, target, actor=None, reason=None):
     except Exception:
         db.rollback()
         raise
-
 
 
 def delete_item(db, household_id, item_id, actor=None):
