@@ -2787,8 +2787,7 @@
                 "type": "null"
               }
             ],
-            "title": "Display Name",
-            "default": null
+            "title": "Display Name"
           },
           "username": {
             "anyOf": [
@@ -2799,8 +2798,7 @@
                 "type": "null"
               }
             ],
-            "title": "Username",
-            "default": null
+            "title": "Username"
           }
         },
         "type": "object",
