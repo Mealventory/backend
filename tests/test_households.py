@@ -49,6 +49,58 @@ def test_join_normalizes_code_and_is_idempotent(secured_client, db):
     assert len(secured_client.get('/api/v1/households/me', headers=headers(token(claims(sub=OTHER)))).json()) == 1
 
 
+@pytest.mark.parametrize(
+    ('email', 'metadata', 'expected_name', 'expected_username'),
+    [
+        ('JohnnyTest@gmail.com', {}, 'JohnnyTest', None),
+        ('JohnnyTest@gmail.com', {'username': 'ChefJohnny'}, 'ChefJohnny', 'ChefJohnny'),
+        ('JohnnyTest@gmail.com', {'display_name': 'Johnny T.'}, 'Johnny T.', None),
+        ('JohnnyTest@gmail.com', {'username': '  ', 'display_name': '  '}, 'JohnnyTest', None),
+        (' JohnnyTest@gmail.com ', {'username': '  ChefJohnny  '}, 'ChefJohnny', 'ChefJohnny'),
+        (None, {}, None, None),
+    ],
+)
+def test_member_identity_uses_explicit_name_or_preserves_email_prefix(
+    email, metadata, expected_name, expected_username
+):
+    from app.services.household_service import _member_identity
+    assert _member_identity(email, metadata) == (expected_name, expected_username)
+
+
+def test_household_members_show_resolved_names_only_to_fellow_members(
+    secured_client, monkeypatch
+):
+    from app.services import household_service
+    hh = create(secured_client)
+    assert join(secured_client, hh['invite_code']).status_code == 200
+    names = {
+        UID: _profile('OwnerName', 'OwnerName'),
+        OTHER: _profile('JohnnyTest', None),
+    }
+
+    def profiles(_db, user_ids):
+        assert set(user_ids) == {UID, OTHER}
+        return names
+
+    monkeypatch.setattr(household_service, '_auth_member_profiles', profiles)
+    url = f"/api/v1/households/{hh['id']}/members"
+    rows = secured_client.get(url, headers=headers()).json()
+    assert {row['user_id']: row['display_name'] for row in rows} == {
+        UID: 'OwnerName', OTHER: 'JohnnyTest'
+    }
+    assert {row['user_id']: row['username'] for row in rows} == {
+        UID: 'OwnerName', OTHER: None
+    }
+    assert all('email' not in row for row in rows)
+    assert secured_client.get(
+        url, headers=headers(token(claims(sub=THIRD)))
+    ).status_code == 403
+
+
+def _profile(display_name, username):
+    return {'display_name': display_name, 'username': username}
+
+
 @pytest.mark.parametrize('payload', [{'name':''}, {'name':'   '}, {'name':'x'*121}, {'name':'Home','created_by':OTHER}, {'name':'Home','role':'owner'}])
 def test_invalid_creation_payload(secured_client, payload):
     assert secured_client.post('/api/v1/households', headers=headers(), json=payload).status_code == 422
