@@ -6,6 +6,7 @@ Never accepts caller identity or initial membership role from request bodies.
 import secrets
 import string
 
+from sqlalchemy import bindparam, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -176,14 +177,74 @@ def rotate_invite_code(db: Session, household_id: str, user_id: str):
     raise InviteCodeCollisionLimit()
 
 
+def _member_identity(email: str | None, metadata: dict | None) -> tuple[str | None, str | None]:
+    """Use the selected username, then display name, then the email local part."""
+    data = metadata if isinstance(metadata, dict) else {}
+
+    def clean(value):
+        return value.strip()[:120] or None if isinstance(value, str) else None
+
+    username = clean(data.get("username"))
+    display_name = (
+        username
+        or clean(data.get("display_name"))
+        or clean(email.split("@", 1)[0]) if isinstance(email, str) and "@" in email
+        else username or clean(data.get("display_name"))
+    )
+    return display_name, username
+
+
+def _auth_member_profiles(db: Session, user_ids: list[str]) -> dict[str, dict]:
+    """Read display-only identities from the server-side Supabase Auth table.
+
+    Never expose the raw email or Auth metadata in household responses. Local
+    databases without the Supabase Auth schema simply return no profiles.
+    """
+    if not user_ids or db.get_bind().dialect.name != "postgresql":
+        return {}
+    if db.execute(text("SELECT to_regclass('auth.users')")).scalar() is None:
+        return {}
+    if not db.execute(
+        text("SELECT has_table_privilege(current_user, 'auth.users', 'SELECT')")
+    ).scalar():
+        return {}
+
+    query = text("""
+        SELECT CAST(id AS TEXT) AS user_id, email, raw_user_meta_data
+        FROM auth.users
+        WHERE CAST(id AS TEXT) IN :user_ids
+    """).bindparams(bindparam("user_ids", expanding=True))
+
+    profiles = {}
+    for row in db.execute(query, {"user_ids": user_ids}).mappings():
+        display_name, username = _member_identity(
+            row["email"], row["raw_user_meta_data"]
+        )
+        profiles[row["user_id"]] = {
+            "display_name": display_name,
+            "username": username,
+        }
+    return profiles
+
+
 def list_members(db: Session, household_id: str, user_id: str):
     _authorize(db, household_id, user_id)
-    return (
+    members = (
         db.query(HouseholdMember)
         .filter_by(household_id=household_id)
         .order_by(HouseholdMember.user_id)
         .all()
     )
+    profiles = _auth_member_profiles(db, [str(m.user_id) for m in members])
+    return [
+        {
+            "household_id": member.household_id,
+            "user_id": member.user_id,
+            "role": member.role,
+            **profiles.get(str(member.user_id), {}),
+        }
+        for member in members
+    ]
 
 
 def _protect_last_owner(db, household_id, target):
