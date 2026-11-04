@@ -185,12 +185,9 @@ def _member_identity(email: str | None, metadata: dict | None) -> tuple[str | No
         return value.strip()[:120] or None if isinstance(value, str) else None
 
     username = clean(data.get("username"))
-    display_name = (
-        username
-        or clean(data.get("display_name"))
-        or clean(email.split("@", 1)[0]) if isinstance(email, str) and "@" in email
-        else username or clean(data.get("display_name"))
-    )
+    explicit_name = clean(data.get("display_name"))
+    email_prefix = clean(email.split("@", 1)[0]) if isinstance(email, str) and "@" in email else None
+    display_name = username or explicit_name or email_prefix
     return display_name, username
 
 
