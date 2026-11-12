@@ -82,6 +82,17 @@ def inventory_api():
             created_at timestamp DEFAULT CURRENT_TIMESTAMP
         )'''))
 
+        c.execute(text('''CREATE TABLE expiry_notification_dispatches (
+            household_id text NOT NULL,
+            dispatched_on date NOT NULL,
+            dispatched_at timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            item_count integer NOT NULL DEFAULT 0,
+            notifications_accepted integer NOT NULL DEFAULT 0,
+            ticket_tokens_json text,
+            receipts_checked_at timestamp,
+            PRIMARY KEY (household_id, dispatched_on)
+        )'''))
+
     with Session(engine) as db:
         db.add_all([
             HouseholdMember(

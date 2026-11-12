@@ -112,3 +112,29 @@ def run_expiry_notifications(
         return run_expiry_notification_job(db, dry_run=dry_run)
     except PushDeliveryError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+from pydantic import BaseModel
+from app.services.notification_service import check_pending_expiry_receipts
+
+
+class ExpiryReceiptCheckReport(BaseModel):
+    dispatches_checked: int
+    tickets_checked: int
+    ok: int
+    errors: int
+    pending: int
+    stale_tokens_removed: int
+
+
+@router.post(
+    "/jobs/receipts",
+    response_model=ExpiryReceiptCheckReport,
+    dependencies=[Depends(require_notification_job_secret)],
+)
+def verify_expiry_notification_receipts(db: Session = Depends(get_db)):
+    """Verify Expo push receipts for dispatched notifications and prune stale tokens."""
+    try:
+        return check_pending_expiry_receipts(db)
+    except PushDeliveryError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc

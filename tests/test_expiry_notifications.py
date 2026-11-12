@@ -313,3 +313,242 @@ def test_low_stock_push_sends_once_until_item_is_restocked(inventory_api):
         )
         assert third["notifications_attempted"] == 2
         assert len(sent) == 4
+
+
+def test_expiry_job_is_idempotent_per_household_and_calendar_day(inventory_api):
+    client, _, engine = inventory_api
+    _add_item(client, HOME, "Milk", "2026-10-02")
+    token = "ExpoPushToken[idempotent-phone]"
+
+    with Session(engine) as db:
+        db.add(PushToken(user_id=OWNER, token=token, platform="ios"))
+        db.commit()
+
+        # Dry runs inspect pending work without consuming the day's dispatch slot.
+        dry = run_expiry_notification_job(db, as_of=date(2026, 10, 1), dry_run=True)
+        assert dry["notifications_attempted"] == 1
+
+        # Transient transport failures roll back cleanly so same-day retries can succeed.
+        from app.services.notification_service import PushDeliveryError
+
+        def failing_sender(_messages):
+            raise PushDeliveryError("temporary outage")
+
+        try:
+            run_expiry_notification_job(
+                db,
+                as_of=date(2026, 10, 1),
+                sender=failing_sender,
+            )
+            raise AssertionError("expected PushDeliveryError")
+        except PushDeliveryError:
+            pass
+
+        calls = []
+
+        def sender(messages):
+            calls.append(messages)
+            return PushDeliveryResult(
+                accepted=len(messages),
+                rejected=0,
+                ticket_ids=("ticket-day1",),
+                ticket_tokens={"ticket-day1": token},
+                accepted_tokens=(token,),
+            )
+
+        first = run_expiry_notification_job(
+            db,
+            as_of=date(2026, 10, 1),
+            sender=sender,
+        )
+        assert first["accepted"] == 1
+        assert len(calls) == 1
+        assert calls[0][0]["data"]["route"] == "/(app)/(tabs)/"
+        assert calls[0][0]["data"]["screen"] == "recipes"
+
+        second = run_expiry_notification_job(
+            db,
+            as_of=date(2026, 10, 1),
+            sender=sender,
+        )
+        assert second["households_with_expiring"] == 1
+        assert second["households_targeted"] == 0
+        assert second["notifications_attempted"] == 0
+        assert second["accepted"] == 0
+        assert len(calls) == 1
+
+        next_day = run_expiry_notification_job(
+            db,
+            as_of=date(2026, 10, 2),
+            sender=sender,
+        )
+        assert next_day["households_targeted"] == 1
+        assert next_day["accepted"] == 1
+        assert len(calls) == 2
+
+
+def test_send_expo_push_and_fetch_receipts_log_outcomes_without_raw_tokens(caplog):
+    import logging
+    from app.services.notification_service import (
+        EXPO_RECEIPTS_URL,
+        ExpoReceiptResult,
+        fetch_expo_receipts,
+    )
+
+    caplog.set_level(logging.INFO, logger="mealventory.notifications")
+    secret_token = "ExpoPushToken[sensitive-device-token]"
+
+    class SendResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": [{"status": "ok", "id": "ticket-ok"}]}
+
+    class SendClient:
+        def post(self, url, headers=None, json=None):
+            return SendResponse()
+
+    push_result = send_expo_push(
+        [{"to": secret_token, "body": "Milk expiring"}],
+        client=SendClient(),
+    )
+    assert push_result.accepted == 1
+    assert push_result.ticket_ids == ("ticket-ok",)
+    assert push_result.ticket_tokens == {"ticket-ok": secret_token}
+
+    class ReceiptResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "data": {
+                    "ticket-ok": {"status": "ok"},
+                    "ticket-stale": {
+                        "status": "error",
+                        "details": {"error": "DeviceNotRegistered"},
+                    },
+                }
+            }
+
+    class ReceiptClient:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, headers=None, json=None):
+            self.calls.append((url, json))
+            return ReceiptResponse()
+
+    receipt_client = ReceiptClient()
+    receipt_result = fetch_expo_receipts(
+        ["ticket-ok", "ticket-stale", "ticket-pending"],
+        client=receipt_client,
+    )
+    assert receipt_client.calls == [
+        (EXPO_RECEIPTS_URL, {"ids": ["ticket-ok", "ticket-stale", "ticket-pending"]})
+    ]
+    assert receipt_result == ExpoReceiptResult(
+        ok=1,
+        errors=1,
+        pending=1,
+        stale_ticket_ids=("ticket-stale",),
+        resolved_ticket_ids=("ticket-ok", "ticket-stale"),
+    )
+    assert "ticket-ok" in caplog.text
+    assert "DeviceNotRegistered" in caplog.text
+    assert secret_token not in caplog.text
+
+
+def test_receipt_check_endpoint_prunes_stale_tokens_and_marks_checked(inventory_api, monkeypatch):
+    from app.services import notification_service
+    from app.services.notification_service import ExpoReceiptResult, check_pending_expiry_receipts
+
+    client, _, engine = inventory_api
+    _add_item(client, HOME, "Milk", "2026-10-02")
+    ok_token = "ExpoPushToken[ok-device]"
+    dead_token = "ExpoPushToken[dead-device]"
+
+    with Session(engine) as db:
+        db.add_all(
+            [
+                PushToken(user_id=OWNER, token=ok_token, platform="ios"),
+                PushToken(user_id=MEMBER, token=dead_token, platform="android"),
+            ]
+        )
+        db.commit()
+
+        def sender(_messages):
+            return PushDeliveryResult(
+                accepted=2,
+                rejected=0,
+                ticket_ids=("t-ok", "t-dead"),
+                ticket_tokens={"t-ok": ok_token, "t-dead": dead_token},
+                accepted_tokens=(ok_token, dead_token),
+            )
+
+        run_expiry_notification_job(db, as_of=date(2026, 10, 1), sender=sender)
+
+        # Partial receipt readiness keeps the unresolved ticket pending.
+        partial = check_pending_expiry_receipts(
+            db,
+            fetcher=lambda ids: ExpoReceiptResult(
+                ok=1,
+                errors=0,
+                pending=1,
+                resolved_ticket_ids=("t-ok",),
+            ),
+        )
+        assert partial["pending"] == 1
+        row = db.execute(
+            text(
+                """SELECT ticket_tokens_json, receipts_checked_at
+                   FROM expiry_notification_dispatches
+                   WHERE household_id = :hid"""
+            ),
+            {"hid": HOME},
+        ).mappings().one()
+        assert row["receipts_checked_at"] is None
+        assert "t-dead" in row["ticket_tokens_json"]
+        assert "t-ok" not in row["ticket_tokens_json"]
+
+    monkeypatch.setattr(settings, "NOTIFICATION_JOB_SECRET", SecretStr("cron-secret"))
+    monkeypatch.setattr(
+        notification_service,
+        "fetch_expo_receipts",
+        lambda ids: ExpoReceiptResult(
+            ok=0,
+            errors=1,
+            pending=0,
+            stale_ticket_ids=("t-dead",),
+            resolved_ticket_ids=("t-dead",),
+        ),
+    )
+
+    assert client.post("/api/v1/notifications/jobs/receipts").status_code == 401
+    response = client.post(
+        "/api/v1/notifications/jobs/receipts",
+        headers={"X-Notification-Job-Secret": "cron-secret"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "dispatches_checked": 1,
+        "tickets_checked": 1,
+        "ok": 0,
+        "errors": 1,
+        "pending": 0,
+        "stale_tokens_removed": 1,
+    }
+
+    with Session(engine) as db:
+        assert {row.token for row in db.query(PushToken).all()} == {ok_token}
+        checked_at = db.execute(
+            text(
+                """SELECT receipts_checked_at
+                   FROM expiry_notification_dispatches
+                   WHERE household_id = :hid"""
+            ),
+            {"hid": HOME},
+        ).scalar_one()
+        assert checked_at is not None
+        assert check_pending_expiry_receipts(db)["dispatches_checked"] == 0
