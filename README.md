@@ -119,9 +119,20 @@ curl -X POST "https://YOUR_BACKEND/api/v1/notifications/jobs/expiry" \
 
 Use `?dry_run=true` to inspect counts without contacting Expo. The job selects
 only active inventory dated today through two days from today, groups items by
-household, and sends one grouped alert to every registered device belonging to a
-current household member. Expired, undated, consumed, and discarded items are
-not included. Expo tokens reported as `DeviceNotRegistered` are removed.
+household, enforces same-calendar-day idempotency via
+`expiry_notification_dispatches`, and sends one grouped alert to every registered
+device belonging to a current household member. Expired, undated, consumed, and
+discarded items are not included. Expo tokens reported as `DeviceNotRegistered`
+are removed, and accepted push tickets are logged for verification.
+
+To check Expo delivery receipts for previously dispatched expiry notifications
+and remove asynchronously flagged `DeviceNotRegistered` tokens, schedule a
+follow-up call roughly 15–30 minutes after the daily dispatch:
+
+```sh
+curl -X POST "https://YOUR_BACKEND/api/v1/notifications/jobs/receipts" \
+  -H "X-Notification-Job-Secret: YOUR_LONG_RANDOM_SECRET"
+```
 
 Mealventory does not currently store a timezone preference per user. Schedule
 the endpoint for 08:00 in the deployment's intended household/demo timezone;
