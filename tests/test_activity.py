@@ -7,6 +7,7 @@ from tests.test_household_inventory import (
     OTHER,
     OUTSIDER,
     inventory_api,
+    patch_item,
 )
 
 
@@ -27,7 +28,7 @@ def test_activity_records_mutations_newest_first_and_opens_active_items(inventor
     milk_id = milk.json()["id"]
 
     identity["id"] = MEMBER
-    moved = client.patch(
+    moved = patch_item(client, 
         f"/api/v1/items/{milk_id}",
         headers=HOME_HEADERS,
         json={"storage_zone": "pantry"},

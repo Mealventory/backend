@@ -1,11 +1,15 @@
 """Disposable PostgreSQL 16 on an ephemeral loopback port; never DATABASE_URL."""
+import os
 import secrets
+import subprocess
+import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 from app.services import household_service as service
@@ -17,7 +21,7 @@ B='10000000-0000-0000-0000-000000000002'
 ROOT=Path(__file__).resolve().parents[1]
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture
 def postgres_engine():
     name='mealventory-household-test-'+uuid.uuid4().hex[:12]
     password=secrets.token_hex(24)
@@ -35,10 +39,33 @@ def postgres_engine():
         result=docker('port',name,'5432/tcp')
         assert result.returncode==0,result.stderr
         port=int(result.stdout.strip().rsplit(':',1)[1])
-        engine=create_engine(URL.create('postgresql+psycopg2',username='postgres',password=password,
-                                       host='127.0.0.1',port=port,database='postgres'))
-        with engine.begin() as connection:
-            connection.exec_driver_sql((ROOT/'scripts/init_db.sql').read_text())
+        # Each test gets a fresh container to avoid both cross-test state
+        # leakage and too many simultaneously running PostgreSQL instances.
+        # Use the real migration chain: the old init_db.sql bootstrap is
+        # missing later inventory, activity and recipe columns.
+        url = URL.create('postgresql+psycopg2',username='postgres',password=password,
+                         host='127.0.0.1',port=port,database='postgres')
+        engine=create_engine(url)
+        # pg_isready inside the container can report ready before the
+        # published loopback port accepts SQLAlchemy connections.
+        for _ in range(60):
+            try:
+                with engine.connect() as connection:
+                    connection.execute(text('SELECT 1'))
+                break
+            except OperationalError:
+                engine.dispose()
+                time.sleep(0.5)
+        else:
+            pytest.fail('PostgreSQL did not accept host TCP connections')
+        env=os.environ.copy()
+        env.pop('DATABASE_URL', None)
+        env['ALEMBIC_DATABASE_URL']=url.render_as_string(hide_password=False)
+        migrated=subprocess.run(
+            [sys.executable,'-m','alembic','upgrade','head'],
+            cwd=ROOT,env=env,text=True,capture_output=True,timeout=180,
+        )
+        assert migrated.returncode==0, migrated.stderr
         yield engine
     finally:
         if engine is not None:

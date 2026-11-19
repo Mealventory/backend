@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_household
@@ -23,7 +23,7 @@ async def get_recipes(
     return await get_inventory_recipes(household_id, db)
 
 
-from app.schemas.saved_recipe import RecipeSnapshot
+from app.schemas.saved_recipe import RecipeSnapshot, SavedRecipeUpdate
 from app.services import saved_recipe_service
 
 
@@ -40,6 +40,15 @@ def save_household_recipe(recipe: RecipeSnapshot, household_id: UUID = Depends(g
 @router.post('/saved/remove', status_code=204)
 def remove_household_recipe(recipe: RecipeSnapshot, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
     saved_recipe_service.remove(db, household_id, recipe)
+
+
+@router.put('/saved/update', status_code=204)
+def update_household_recipe(request: SavedRecipeUpdate, household_id: UUID = Depends(get_current_household), db: Session = Depends(get_db)):
+    result = saved_recipe_service.update(db, household_id, request.previous, request.recipe)
+    if result == 'not_found':
+        raise HTTPException(status_code=404, detail='The saved recipe could not be found. Refresh Saved recipes and try again.')
+    if result == 'duplicate':
+        raise HTTPException(status_code=409, detail='Another saved recipe already has this name and ingredients.')
 
 
 from app.schemas.recipe_completion import RecipeCompletion

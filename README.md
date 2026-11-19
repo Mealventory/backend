@@ -76,6 +76,9 @@ See [database migration setup, macOS/Windows commands, downgrade guidance, and P
 | POST | `/api/v1/scan/` | Scan and add inventory (rate limited) |
 | POST | `/api/v1/scan/sample` | Optional development sample scan |
 | GET | `/api/v1/recipes/` | Suggest recipes from inventory |
+| GET, PUT | `/api/v1/recipes/saved` | List or save a household recipe snapshot |
+| PUT | `/api/v1/recipes/saved/update` | Edit a saved recipe, including its identity, atomically |
+| POST | `/api/v1/recipes/saved/remove` | Remove a household recipe snapshot |
 | POST | `/api/v1/food/predict-expiry/{food_id}` | Predict expiry |
 | PUT | `/api/v1/notifications/device` | Register/transfer this user's Expo push token |
 | POST | `/api/v1/notifications/device/remove` | Remove this user's Expo push token |

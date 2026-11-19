@@ -10,6 +10,7 @@ from app.core.auth_errors import (
     validation_problem_handler,
 )
 from app.core.config import settings
+from app.core.request_logging import request_logging_middleware
 
 
 app = FastAPI(
@@ -28,7 +29,10 @@ app.add_middleware(
     allow_credentials="*" not in settings.CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
+
+app.middleware("http")(request_logging_middleware)
 
 app.include_router(api_router)
 

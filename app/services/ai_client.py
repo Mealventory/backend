@@ -5,6 +5,7 @@ from threading import Lock
 import httpx
 from fastapi import HTTPException
 from app.core.config import settings
+from app.core.request_logging import correlation_headers
 
 
 class AIServiceUnavailable(HTTPException):
@@ -60,6 +61,7 @@ async def _request(image_bytes, mode):
             try:
                 response = await client.post(
                     f"{settings.AI_SERVICE_URL.rstrip('/')}/scan/",
+                    headers=correlation_headers(),
                     data={'mode': mode},
                     files={'file': ('image.jpg', image_bytes, 'image/jpeg')},
                 )

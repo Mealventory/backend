@@ -2,12 +2,11 @@ from uuid import UUID
 from app.core.dependencies import get_current_household
 from app.core.auth_errors import AuthProblem, problem_response
 from app.core.rate_limit import limit_scans
-from typing import Annotated, List, Literal
+from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 from app.dependencies.database import get_db
 from app.schemas.user import UserOut
-from app.schemas.inventory import InventoryItemOut
 from app.schemas.scan import SampleScanRequest
 from app.services import scan_service
 
@@ -26,7 +25,6 @@ router = APIRouter(
 
 @router.post(
     "/",
-    response_model=List[InventoryItemOut],
     responses={
         422: problem_response("Image type mismatch or no food items detected"),
     },

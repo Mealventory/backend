@@ -1,7 +1,7 @@
 from uuid import uuid4
 import pytest
 from sqlalchemy import text
-from tests.test_household_inventory import inventory_api, HOME, OTHER, MEMBER, OUTSIDER
+from tests.test_household_inventory import inventory_api, patch_item, HOME, OTHER, MEMBER, OUTSIDER
 
 HEADERS = {'X-Household-ID': HOME}
 
@@ -17,7 +17,7 @@ def test_all_fields_and_shared_catalogue_isolation(inventory_api):
                    {'id': sibling, 'home': OTHER, 'food': food})
     identity['id'] = MEMBER
     url = '/api/v1/items/' + item['id']
-    response = client.patch(url, headers=HEADERS, json={'name': ' Oat milk ', 'category': 'Dairy alternative',
+    response = patch_item(client, url, headers=HEADERS, json={'name': ' Oat milk ', 'category': 'Dairy alternative',
         'quantity': '2.125', 'unit': 'litres', 'expiry_date': '2026-10-10', 'storage_zone': 'fridge'})
     assert response.status_code == 200, response.text
     edited = response.json()
@@ -30,15 +30,15 @@ def test_all_fields_and_shared_catalogue_isolation(inventory_api):
         assert db.execute(text('SELECT food_id FROM inventory_items WHERE id=:id'), {'id': sibling}).scalar() == food
     with engine.connect() as db:
         assert db.execute(text('SELECT f.avg_shelf_life_days FROM foods f JOIN inventory_items i ON f.id=i.food_id WHERE i.id=:id'), {'id': item['id']}).scalar() == 7
-    response = client.patch(url, headers=HEADERS, json={'expiry_date': None})
-    expected = dict(edited, expiry_date=None)
+    response = patch_item(client, url, headers=HEADERS, json={'expiry_date': None})
+    expected = dict(edited, expiry_date=None, version=edited['version'] + 1)
     assert response.json() == expected
-    assert client.patch(url, headers=HEADERS, json={'storage_zone': 'freezer', 'status': 'consumed'}).json()['status'] == 'consumed'
-    assert client.patch(url, headers=HEADERS, json={'status': 'consumed'}).status_code == 200
-    assert client.patch(url, headers=HEADERS, json={'status': 'active'}).status_code == 409
+    assert patch_item(client, url, headers=HEADERS, json={'storage_zone': 'freezer', 'status': 'consumed'}).json()['status'] == 'consumed'
+    assert patch_item(client, url, headers=HEADERS, json={'status': 'consumed'}).status_code == 200
+    assert patch_item(client, url, headers=HEADERS, json={'status': 'active'}).status_code == 409
     identity['id'] = OUTSIDER
-    assert client.patch(url, headers={'X-Household-ID': OTHER}, json={'name': 'Stolen'}).status_code == 404
-    assert client.patch(url, headers=HEADERS, json={'name': 'Stolen'}).status_code == 403
+    assert patch_item(client, url, headers={'X-Household-ID': OTHER}, json={'name': 'Stolen'}).status_code == 404
+    assert patch_item(client, url, headers=HEADERS, json={'name': 'Stolen'}).status_code == 403
 
 
 @pytest.mark.parametrize('patch', [{'name': ''}, {'name': None}, {'category': ' '}, {'category': None},
@@ -47,17 +47,46 @@ def test_all_fields_and_shared_catalogue_isolation(inventory_api):
 def test_invalid_extended_patches(inventory_api, patch):
     client, _, _ = inventory_api
     item = client.post('/api/v1/items', headers=HEADERS, json={'name': 'Rice'}).json()
-    assert client.patch('/api/v1/items/' + item['id'], headers=HEADERS, json=patch).status_code == 422
+    assert patch_item(client, '/api/v1/items/' + item['id'], headers=HEADERS, json=patch).status_code == 422
     assert client.get('/api/v1/items', headers=HEADERS).json() == [item]
 
 
 def test_failed_location_does_not_leave_label_changes(inventory_api):
     client, _, engine = inventory_api
     item = client.post('/api/v1/items', headers=HEADERS, json={'name': 'Rice'}).json()
-    response = client.patch('/api/v1/items/' + item['id'], headers=HEADERS,
+    response = patch_item(client, '/api/v1/items/' + item['id'], headers=HEADERS,
                             json={'name': 'Changed', 'storage_location_id': str(uuid4())})
     assert response.status_code == 404
     assert response.headers['content-type'] == 'application/problem+json'
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM foods')).scalar() == 1
     assert client.get('/api/v1/items', headers=HEADERS).json() == [item]
+
+
+def test_item_precondition_required_and_stale_reads_rejected(inventory_api):
+    client, identity, engine = inventory_api
+    created = client.post('/api/v1/items', headers=HEADERS, json={'name': 'Rice'}).json()
+    url = '/api/v1/items/' + created['id']
+    assert created['version'] == 1
+
+    assert client.patch(url, headers=HEADERS, json={'quantity': 5}).status_code == 428
+    assert client.patch(url, headers={**HEADERS, 'If-Match': 'abc'},
+                        json={'quantity': 5}).status_code == 400
+
+    first = client.patch(url, headers={**HEADERS, 'If-Match': '1'},
+                         json={'quantity': 3})
+    assert first.status_code == 200, first.text
+    assert first.json()['version'] == 2
+
+    identity['id'] = MEMBER
+    stale = client.patch(url, headers={**HEADERS, 'If-Match': '1'},
+                         json={'quantity': 7})
+    assert stale.status_code == 409
+    assert 'changed since' in stale.json()['detail']
+    fresh = client.get('/api/v1/items', headers=HEADERS).json()[0]
+    assert fresh['quantity'] == '3' or float(fresh['quantity']) == 3
+    assert fresh['version'] == 2
+    with engine.connect() as db:
+        from sqlalchemy import text
+        assert float(db.execute(text('SELECT quantity FROM inventory_items WHERE id=:id'),
+                                {'id': created['id']}).scalar_one()) == 3

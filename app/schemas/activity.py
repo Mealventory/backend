@@ -1,3 +1,4 @@
+
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -17,6 +18,14 @@ ActivityAction = Literal[
 
 ActivityEntityType = Literal["inventory", "shopping"]
 
+WasteReason = Literal[
+    "expired",
+    "spoiled",
+    "bought_too_much",
+    "didnt_like",
+    "other",
+]
+
 
 class ActivityEventOut(BaseModel):
     id: UUID
@@ -27,4 +36,5 @@ class ActivityEventOut(BaseModel):
     entity_type: ActivityEntityType
     entity_id: UUID | None = None
     item_name: str
+    reason: WasteReason | None = None
     created_at: datetime

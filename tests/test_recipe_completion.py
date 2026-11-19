@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy import text
-from tests.test_household_inventory import inventory_api, HOME, OTHER, OWNER, MEMBER, OUTSIDER
+from tests.test_household_inventory import inventory_api, patch_item, HOME, OTHER, OWNER, MEMBER, OUTSIDER
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def test_atomic_failure_and_stale_review(meal_api):
     active = client.get('/api/v1/items', headers={'X-Household-ID': HOME}).json()
     assert {r['id']: r['quantity'] for r in active} == {a['id']: a['quantity'], b['id']: b['quantity']}
     request = review(a)
-    client.patch('/api/v1/items/' + a['id'], headers={'X-Household-ID': HOME}, json={'quantity': 4})
+    assert patch_item(client, '/api/v1/items/' + a['id'], headers={'X-Household-ID': HOME}, json={'quantity': 4}).status_code == 200
     assert submit(client, request).status_code == 409
     request['items'][0]['expected_quantity'] = '4'
     request['items'][0]['unit'] = 'kg'

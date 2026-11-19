@@ -42,3 +42,5 @@ class HouseholdMemberOut(BaseModel):
     household_id: UUID
     user_id: UUID
     role: MemberRole
+    display_name: str | None = None
+    username: str | None = None

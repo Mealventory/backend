@@ -17,6 +17,7 @@ def test_both_launch_modules_use_same_application():
 
 
 @pytest.mark.parametrize('path', ['/api/v0/items', '/api/v0/items/1', '/inventory/',
+                                  '/api/v1/inventory/', '/api/v1/inventory/1',
                                   '/food-items/', '/scan/', '/scan/scan/normalize',
                                   '/recipes/', '/recipes/generate', '/health/', '/test'])
 @pytest.mark.parametrize('method', ['get', 'post'])
@@ -85,17 +86,11 @@ def test_user_registration_and_profile(client, db):
     assert client.get('/api/v1/users/me').json()['id'] == 'alice'
 
 
-def test_inventory_crud_and_user_isolation(client, db):
-    other=InventoryItem(user_id='bob', food_id=1)
-    db.add(other); db.commit()
-    response=client.post('/api/v1/inventory/',json={'food_id':1})
-    assert response.status_code == 201
-    item=response.json()
-    assert item['user_id']=='alice' and item['expiry_date']
-    assert [i['id'] for i in client.get('/api/v1/inventory/').json()] == [item['id']]
-    assert client.delete(f'/api/v1/inventory/{other.id}').status_code == 404
-    assert client.delete(f"/api/v1/inventory/{item['id']}").status_code == 204
-    assert client.post('/api/v1/inventory/',json={'food_id':999}).status_code == 404
+def test_legacy_inventory_endpoints_return_404(client):
+    assert client.get('/api/v1/inventory/').status_code == 404
+    assert client.post('/api/v1/inventory/', json={'food_id': 1}).status_code == 404
+    assert client.delete('/api/v1/inventory/1').status_code == 404
+    assert client.post('/api/v1/inventory/', json={'food_id': 999}).status_code == 404
 
 
 def test_upload_scan_stores_duplicate_items(client,db,monkeypatch):

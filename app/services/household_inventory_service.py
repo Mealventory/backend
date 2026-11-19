@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.initial_quantity, i.unit, i.expiry_date, i.status, i.storage_location_id, i.image_ref,
+    i.quantity, i.initial_quantity, i.version, i.unit, i.expiry_date, i.status, i.storage_location_id, i.image_ref,
     (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
         AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
@@ -101,6 +101,7 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
             WHERE i.household_id = :household_id
               AND i.status = 'active'
               AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
+              AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
               AND i.storage_location_id = :location
               AND {expiry_clause}
               AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
@@ -110,9 +111,10 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
         params = {
             'household_id': str(household_id),
             'name': item.name,
+            'category': item.category,
             'location': location,
             'unit': item.unit,
-            **expiry_param
+            **expiry_param,
         }
         existing = db.execute(text(find_query), params).mappings().first()
         if existing:
@@ -129,7 +131,8 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
                 UPDATE inventory_items
                 SET quantity = :quantity,
                     initial_quantity = :initial_quantity,
-                    image_ref = :image_ref
+                    image_ref = :image_ref,
+                    version = version + 1
                 WHERE id = :id AND household_id = :household_id
             '''), {
                 'id': existing_id,
@@ -169,7 +172,7 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
         raise
 
 
-def add_batch(db, household_id, items, actor=None):
+def add_batch(db, household_id, items, actor=None, *, commit=True):
     try:
         consolidated = []
         seen = {}
@@ -177,7 +180,7 @@ def add_batch(db, household_id, items, actor=None):
             _check_location(db, household_id, item.storage_location_id)
             _check_image_ref_household(household_id, item.image_ref)
             loc = str(item.storage_location_id) if item.storage_location_id else _zone_location(db, household_id, item.storage_zone)
-            key = (item.name.strip().lower(), loc, item.expiry_date, item.unit.strip().lower())
+            key = (item.name.strip().lower(), item.category.strip().lower(), loc, item.expiry_date, item.unit.strip().lower())
             if key in seen:
                 prev_idx = seen[key]
                 prev_item = consolidated[prev_idx]
@@ -189,7 +192,8 @@ def add_batch(db, household_id, items, actor=None):
                 consolidated.append(item)
 
         rows = [add_item(db, household_id, item, commit=False, actor=actor) for item in consolidated]
-        db.commit()
+        if commit:
+            db.commit()
         return rows
     except Exception:
         db.rollback()
@@ -208,17 +212,19 @@ def _zone_location(db, household_id, zone):
     return str(row['id'])
 
 
-def update_item(db, household_id, item_id, patch, actor=None):
+def update_item(db, household_id, item_id, patch, actor=None, *, expected_version=None):
     try:
         values = patch.model_dump(exclude_unset=True)
         params = dict(id=str(item_id), household_id=str(household_id))
         # Serialize all edits against status transitions before copying catalogue data.
         lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
-        current = db.execute(text('''SELECT food_id, status, storage_location_id
+        current = db.execute(text('''SELECT food_id, status, storage_location_id, version
             FROM inventory_items WHERE id=:id AND household_id=:household_id''' + lock),
             params).mappings().first()
         if current is None:
             raise AuthProblem(404, 'Item not found in this household')
+        if expected_version is not None and current['version'] != expected_version:
+            raise AuthProblem(409, 'Inventory item changed since you opened it. Refresh and review your edits.')
         if current['status'] != 'active':
             if values == {'status': current['status']}:
                 row = get_item(db, household_id, item_id)
@@ -247,11 +253,82 @@ def update_item(db, household_id, item_id, patch, actor=None):
                 values[key] = str(values[key])
         if values:
             # Keys come exclusively from ItemUpdate and the internal food replacement.
-            assignments = ', '.join(f'{key} = :{key}' for key in values)
+            assignments = ', '.join(f'{key} = :{key}' for key in values) + ', version = version + 1'
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
-        quantity_changed = 'quantity' in values
+        dup = None
+        if row['status'] == 'active':
+            if row['expiry_date'] is None:
+                expiry_clause = 'i.expiry_date IS NULL'
+                expiry_param = {}
+            else:
+                expiry_clause = 'i.expiry_date = :expiry_date'
+                expiry_param = {'expiry_date': row['expiry_date']}
+            if row['storage_location_id'] is None:
+                loc_clause = 'i.storage_location_id IS NULL'
+                loc_param = {}
+            else:
+                loc_clause = 'i.storage_location_id = :location'
+                loc_param = {'location': str(row['storage_location_id'])}
+
+            dup = db.execute(text(f'''
+                SELECT i.id, i.quantity, i.initial_quantity, i.image_ref
+                FROM inventory_items i
+                JOIN foods f ON f.id = i.food_id
+                WHERE i.household_id = :household_id
+                  AND i.status = 'active'
+                  AND i.id != :id
+                  AND LOWER(TRIM(f.name)) = LOWER(TRIM(:name))
+                  AND LOWER(TRIM(f.category)) = LOWER(TRIM(:category))
+                  AND {loc_clause}
+                  AND {expiry_clause}
+                  AND LOWER(TRIM(i.unit)) = LOWER(TRIM(:unit))
+                ORDER BY i.created_at, i.id
+                LIMIT 1
+                {lock}
+            '''), {
+                'household_id': str(household_id),
+                'id': str(item_id),
+                'name': row['name'],
+                'category': row['category'] or 'Pantry',
+                'unit': row['unit'],
+                **loc_param,
+                **expiry_param,
+            }).mappings().first()
+        if dup:
+            target_id = str(dup['id'])
+            inc_qty = Decimal(str(row['quantity']))
+            new_qty = Decimal(str(dup['quantity'])) + inc_qty
+            if dup['initial_quantity'] is not None:
+                new_initial = Decimal(str(dup['initial_quantity'])) + inc_qty
+            else:
+                new_initial = new_qty
+            new_image = dup['image_ref'] or row['image_ref']
+            db.execute(text('''
+                UPDATE inventory_items
+                SET quantity = :quantity,
+                    initial_quantity = :initial_quantity,
+                    image_ref = :image_ref,
+                    version = version + 1
+                WHERE id = :id AND household_id = :household_id
+            '''), {
+                'id': target_id,
+                'household_id': str(household_id),
+                'quantity': str(new_qty),
+                'initial_quantity': str(new_initial),
+                'image_ref': new_image,
+            })
+            db.execute(text('''
+                DELETE FROM inventory_items
+                WHERE id = :id AND household_id = :household_id
+            '''), {
+                'id': str(item_id),
+                'household_id': str(household_id),
+            })
+            item_id = target_id
+            row = get_item(db, household_id, target_id)
+        quantity_changed = 'quantity' in values or bool(dup)
         activity_action = (
             'moved'
             if str(current['storage_location_id'] or '') != str(row['storage_location_id'] or '')
@@ -273,22 +350,38 @@ def update_item(db, household_id, item_id, patch, actor=None):
         raise
 
 
-def transition_item(db, household_id, item_id, target, actor=None):
+def transition_item(db, household_id, item_id, target, actor=None, reason=None):
     if target not in ('consumed', 'discarded'):
         raise ValueError('Unsupported item transition')
+
+    if target == 'consumed':
+        reason = None
+
     try:
         # Conditional update serializes competing transitions without overwriting history.
-        result = db.execute(text('''UPDATE inventory_items SET status = :target
+        result = db.execute(text('''UPDATE inventory_items
+            SET status = :target, version = version + 1
             WHERE id = :id AND household_id = :household_id AND status = 'active' '''),
             dict(target=target, id=str(item_id), household_id=str(household_id)))
+
         row = get_item(db, household_id, item_id)
+
         if result.rowcount == 0:
             raise AuthProblem(400, 'Item is not active')
+
         activity_service.record_event(
-            db, household_id, actor, target, row['name'], entity_id=item_id
+            db,
+            household_id,
+            actor,
+            target,
+            row['name'],
+            entity_id=item_id,
+            reason=reason,
         )
+
         db.commit()
         return row
+
     except Exception:
         db.rollback()
         raise
