@@ -18,3 +18,10 @@ class RecipeSnapshot(BaseModel):
     steps: list[Annotated[str, Field(min_length=1, max_length=4000)]] = Field(max_length=100)
     priorityIngredients: list[ShortText] | None = Field(default=None, max_length=100)
     missingIngredients: list[ShortText] | None = Field(default=None, max_length=100)
+    origin: Literal['custom'] | None = None
+
+
+class SavedRecipeUpdate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    previous: RecipeSnapshot
+    recipe: RecipeSnapshot
