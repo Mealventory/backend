@@ -31,7 +31,7 @@ def test_all_fields_and_shared_catalogue_isolation(inventory_api):
     with engine.connect() as db:
         assert db.execute(text('SELECT f.avg_shelf_life_days FROM foods f JOIN inventory_items i ON f.id=i.food_id WHERE i.id=:id'), {'id': item['id']}).scalar() == 7
     response = patch_item(client, url, headers=HEADERS, json={'expiry_date': None})
-    expected = dict(edited, expiry_date=None)
+    expected = dict(edited, expiry_date=None, version=edited['version'] + 1)
     assert response.json() == expected
     assert patch_item(client, url, headers=HEADERS, json={'storage_zone': 'freezer', 'status': 'consumed'}).json()['status'] == 'consumed'
     assert patch_item(client, url, headers=HEADERS, json={'status': 'consumed'}).status_code == 200
@@ -61,3 +61,32 @@ def test_failed_location_does_not_leave_label_changes(inventory_api):
     with engine.connect() as db:
         assert db.execute(text('SELECT count(*) FROM foods')).scalar() == 1
     assert client.get('/api/v1/items', headers=HEADERS).json() == [item]
+
+
+def test_item_precondition_required_and_stale_reads_rejected(inventory_api):
+    client, identity, engine = inventory_api
+    created = client.post('/api/v1/items', headers=HEADERS, json={'name': 'Rice'}).json()
+    url = '/api/v1/items/' + created['id']
+    assert created['version'] == 1
+
+    assert client.patch(url, headers=HEADERS, json={'quantity': 5}).status_code == 428
+    assert client.patch(url, headers={**HEADERS, 'If-Match': 'abc'},
+                        json={'quantity': 5}).status_code == 400
+
+    first = client.patch(url, headers={**HEADERS, 'If-Match': '1'},
+                         json={'quantity': 3})
+    assert first.status_code == 200, first.text
+    assert first.json()['version'] == 2
+
+    identity['id'] = MEMBER
+    stale = client.patch(url, headers={**HEADERS, 'If-Match': '1'},
+                         json={'quantity': 7})
+    assert stale.status_code == 409
+    assert 'changed since' in stale.json()['detail']
+    fresh = client.get('/api/v1/items', headers=HEADERS).json()[0]
+    assert fresh['quantity'] == '3' or float(fresh['quantity']) == 3
+    assert fresh['version'] == 2
+    with engine.connect() as db:
+        from sqlalchemy import text
+        assert float(db.execute(text('SELECT quantity FROM inventory_items WHERE id=:id'),
+                                {'id': created['id']}).scalar_one()) == 3
