@@ -57,6 +57,7 @@ def inventory_api():
             household_id text NOT NULL,
             food_id text NOT NULL,
             quantity numeric NOT NULL,
+            version integer NOT NULL DEFAULT 1,
             quantity_tracking_enabled boolean NOT NULL DEFAULT 0,
             initial_quantity numeric,
             low_stock_threshold_percent numeric NOT NULL DEFAULT 10,
@@ -120,6 +121,28 @@ def inventory_api():
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+
+
+def patch_item(client, url, *, headers, json):
+    """Existing API regression tests use the current version of each item.
+
+    Dedicated stale-write tests use client.patch directly with an old If-Match.
+    """
+    response = client.get('/api/v1/items', headers=headers)
+    items = response.json() if response.status_code == 200 else []
+    ident = url.rsplit('/', 1)[-1]
+    current = next((row for row in items if row['id'] == ident), None)
+    if current is None:
+        for status in ('consumed', 'discarded'):
+            response = client.get('/api/v1/items', headers=headers,
+                                  params={'status': status})
+            if response.status_code == 200:
+                current = next((row for row in response.json()
+                                if row['id'] == ident), None)
+            if current is not None:
+                break
+    expected = current['version'] if current is not None else 1
+    return client.patch(url, headers={**headers, 'If-Match': str(expected)}, json=json)
 
 
 def test_member_delete_persists_and_is_visible_to_owner(inventory_api):
@@ -259,7 +282,7 @@ def test_member_edit_and_terminal_states(inventory_api):
 
     identity['id'] = MEMBER
 
-    edited = client.patch(
+    edited = patch_item(client, 
         url,
         headers=headers,
         json={
@@ -295,7 +318,7 @@ def test_member_edit_and_terminal_states(inventory_api):
         assert result.status_code == 400
         assert result.json()['detail'] == 'Item is not active'
 
-    assert client.patch(
+    assert patch_item(client, 
         url,
         headers=headers,
         json={'quantity': 3}
@@ -359,7 +382,7 @@ def test_batch_atomicity_filters_and_storage_isolation(inventory_api):
 
     url = '/api/v1/items/' + response.json()[0]['id']
 
-    assert client.patch(
+    assert patch_item(client, 
         url,
         headers=headers,
         json={'storage_location_id': foreign}
@@ -403,7 +426,7 @@ def test_batch_atomicity_filters_and_storage_isolation(inventory_api):
             text('SELECT count(*) FROM foods')
         ).scalar() == 6
 
-    updated = client.patch(
+    updated = patch_item(client, 
         url,
         headers=headers,
         json={'storage_location_id': None}
@@ -448,7 +471,7 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
         {'low_stock_threshold_percent': 5},
         {'household_id': OTHER}
     ]:
-        assert client.patch(
+        assert patch_item(client, 
             url,
             headers=headers,
             json=patch
@@ -474,7 +497,7 @@ def test_edit_validation_and_tenant_isolation(inventory_api):
     identity['id'] = OUTSIDER
 
     for home, expected in [(HOME, 403), (OTHER, 404)]:
-        assert client.patch(
+        assert patch_item(client, 
             url,
             headers={'X-Household-ID': home},
             json={'quantity': 4}
@@ -521,7 +544,7 @@ def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(
 
     url = '/api/v1/items/' + item['id']
 
-    low = client.patch(
+    low = patch_item(client, 
         url,
         headers=headers,
         json={'quantity': 0.2}
@@ -531,7 +554,7 @@ def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(
     assert float(low.json()['remaining_percent']) == 10
     assert low.json()['is_low_stock'] is True
 
-    above = client.patch(
+    above = patch_item(client, 
         url,
         headers=headers,
         json={'quantity': 0.21}
@@ -547,7 +570,7 @@ def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(
         {'initial_quantity': 5},
         {'low_stock_threshold_percent': 50}
     ]:
-        assert client.patch(
+        assert patch_item(client, 
             url,
             headers=headers,
             json=patch
@@ -560,7 +583,7 @@ def test_low_stock_tracking_is_automatic_fixed_and_household_scoped(
         headers={'X-Household-ID': OTHER}
     ).json() == []
 
-    assert client.patch(
+    assert patch_item(client, 
         url,
         headers={'X-Household-ID': OTHER},
         json={'quantity': 0.1}
@@ -647,7 +670,7 @@ def test_item_image_reference_create_update_clear_and_household_scope(
 
     remote = 'https://images.openfoodfacts.org/images/products/test.jpg'
 
-    updated = client.patch(
+    updated = patch_item(client, 
         '/api/v1/items/' + item['id'],
         headers=headers,
         json={'image_ref': remote}
@@ -656,7 +679,7 @@ def test_item_image_reference_create_update_clear_and_household_scope(
     assert updated.status_code == 200, updated.text
     assert updated.json()['image_ref'] == remote
 
-    cleared = client.patch(
+    cleared = patch_item(client, 
         '/api/v1/items/' + item['id'],
         headers=headers,
         json={'image_ref': None}
@@ -672,7 +695,7 @@ def test_item_image_reference_create_update_clear_and_household_scope(
         '../escape.jpg',
         f'{OTHER}/foreign-photo.jpg'
     ]:
-        response = client.patch(
+        response = patch_item(client, 
             '/api/v1/items/' + item['id'],
             headers=headers,
             json={'image_ref': invalid}
@@ -685,7 +708,7 @@ def test_item_image_reference_create_update_clear_and_household_scope(
 
     identity['id'] = OUTSIDER
 
-    assert client.patch(
+    assert patch_item(client, 
         '/api/v1/items/' + item['id'],
         headers={'X-Household-ID': OTHER},
         json={'image_ref': f'{OTHER}/attempt.jpg'}
@@ -885,7 +908,7 @@ def test_update_item_stacks_when_attributes_become_identical(inventory_api):
     assert first['id'] != second['id']
 
     # Edit second so expiry_date matches first (None)
-    merged = client.patch(
+    merged = patch_item(client, 
         f"/api/v1/items/{second['id']}",
         headers=headers,
         json={'expiry_date': None},
