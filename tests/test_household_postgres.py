@@ -39,6 +39,12 @@ def postgres_engine():
                                        host='127.0.0.1',port=port,database='postgres'))
         with engine.begin() as connection:
             connection.exec_driver_sql((ROOT/'scripts/init_db.sql').read_text())
+            # The legacy bootstrap predates Alembic's item-image migration.
+            # Runtime inventory services query image_ref on every read/write.
+            # Keep this disposable fixture aligned without changing the legacy SQL.
+            connection.exec_driver_sql(
+                "ALTER TABLE public.inventory_items ADD COLUMN image_ref text"
+            )
         yield engine
     finally:
         if engine is not None:
