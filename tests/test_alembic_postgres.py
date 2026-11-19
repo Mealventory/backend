@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261022_0008"
+HEAD = "20261119_0009"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -46,6 +46,8 @@ REQUIRED_TABLES = {
     "household_recipe_completions",
     "household_activity_events",
     "batch_idempotency_records",
+    "household_meal_plan_slots",
+    "household_meal_plan_imports",
 }
 
 
@@ -169,6 +171,16 @@ def test_clean_database_upgrades_to_current_schema(database_url):
             }
             assert "low_stock_notified_at" in inventory_columns
             assert "image_ref" in inventory_columns
+            for table in ("household_meal_plan_slots", "household_meal_plan_imports"):
+                assert connection.execute(text(
+                    "SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:name)"
+                ), {"name": "public." + table}).scalar_one() is True
+                for role in ("anon", "authenticated"):
+                    granted = connection.execute(text(
+                        "SELECT has_table_privilege(:role, :table, 'SELECT') "
+                        "FROM pg_roles WHERE rolname=:role"
+                    ), {"role": role, "table": "public." + table}).scalar_one_or_none()
+                    assert granted is None or granted is False
     finally:
         engine.dispose()
 
