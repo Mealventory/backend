@@ -132,3 +132,100 @@ def test_low_stock_tracking_uses_persisted_reference_quantity(postgres_engine):
         )
         assert str(low['remaining_percent']) == '10.0'
         assert low['is_low_stock'] is True
+
+
+def test_stale_quantity_patch_and_independent_items(postgres_engine):
+    """Two devices editing the same read version cannot both commit."""
+    from concurrent.futures import ThreadPoolExecutor
+    from app.core.auth_errors import AuthProblem
+
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Versioned stock')
+        milk = inventory.add_item(db, home.id, ItemCreate(name='Milk', quantity='4'))
+        bread = inventory.add_item(db, home.id, ItemCreate(name='Bread'))
+    assert milk['version'] == bread['version'] == 1
+
+    def edit(amount):
+        with Session(postgres_engine) as db:
+            try:
+                return inventory.update_item(
+                    db, home.id, milk['id'], ItemUpdate(quantity=amount),
+                    expected_version=milk['version'],
+                )['version']
+            except AuthProblem as error:
+                return error.status_code
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(edit, ['2', '3']))
+    assert sorted(results) == [2, 409]
+
+    with Session(postgres_engine) as db:
+        fresh = inventory.get_item(db, home.id, milk['id'])
+        assert fresh['version'] == 2
+        assert str(fresh['quantity']) in ('2.000', '3.000')
+        other = inventory.update_item(
+            db, home.id, bread['id'], ItemUpdate(quantity='5'),
+            expected_version=bread['version'],
+        )
+        assert other['version'] == 2
+        assert str(other['quantity']) == '5.000'
+
+
+def test_version_changes_for_stack_merge_and_terminal_status(postgres_engine):
+    from app.core.auth_errors import AuthProblem
+
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Version mutation')
+        item = inventory.add_item(db, home.id, ItemCreate(name='Rice', quantity='2'))
+        # Adding an identical item stacks onto the original row.
+        stacked = inventory.add_item(db, home.id, ItemCreate(name='Rice', quantity='1'))
+        assert stacked['id'] == item['id']
+        assert stacked['version'] == item['version'] + 1
+        with __import__('pytest').raises(AuthProblem) as stale:
+            inventory.update_item(
+                db, home.id, item['id'], ItemUpdate(quantity='10'),
+                expected_version=item['version'],
+            )
+        assert stale.value.status_code == 409
+
+        moved = inventory.update_item(
+            db, home.id, stacked['id'], ItemUpdate(storage_zone='fridge'),
+            expected_version=stacked['version'],
+        )
+        assert moved['version'] == stacked['version'] + 1
+        consumed = inventory.transition_item(db, home.id, moved['id'], 'consumed')
+        assert consumed['version'] == moved['version'] + 1
+        with __import__('pytest').raises(AuthProblem) as inactive:
+            inventory.update_item(
+                db, home.id, moved['id'], ItemUpdate(quantity='12'),
+                expected_version=moved['version'],
+            )
+        assert inactive.value.status_code == 409
+
+
+def test_edit_merge_changes_target_version_and_deletes_source(postgres_engine):
+    import pytest
+    from app.core.auth_errors import AuthProblem
+
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'Merge after read')
+        source = inventory.add_item(db, home.id, ItemCreate(name='Bread', quantity='2'))
+        target = inventory.add_item(db, home.id, ItemCreate(name='Milk', quantity='1'))
+        merged = inventory.update_item(
+            db, home.id, source['id'], ItemUpdate(name='Milk'),
+            expected_version=source['version'],
+        )
+        assert str(merged['id']) == str(target['id'])
+        assert merged['version'] == target['version'] + 1
+        with pytest.raises(AuthProblem) as gone:
+            inventory.update_item(
+                db, home.id, source['id'], ItemUpdate(quantity='7'),
+                expected_version=source['version'],
+            )
+        assert gone.value.status_code == 404
+        with pytest.raises(AuthProblem) as stale_target:
+            inventory.update_item(
+                db, home.id, target['id'], ItemUpdate(quantity='7'),
+                expected_version=target['version'],
+            )
+        assert stale_target.value.status_code == 409
