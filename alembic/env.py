@@ -17,6 +17,7 @@ from app.models.household_member import HouseholdMember  # noqa: F401
 from app.models.household_store import HouseholdStore  # noqa: F401
 from app.models.push_token import PushToken  # noqa: F401
 from app.models.saved_recipe import SavedRecipe  # noqa: F401
+from app.models.meal_plan import MealPlanSlot, MealPlanImport  # noqa: F401
 from app.models.shopping import ShoppingListItem  # noqa: F401
 
 load_dotenv()

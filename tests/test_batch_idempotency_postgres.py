@@ -45,6 +45,7 @@ def pg_idempotency(postgres_engine):
                 entity_type varchar(20) NOT NULL,
                 entity_id uuid,
                 item_name varchar(200) NOT NULL,
+                reason text,
                 created_at timestamptz NOT NULL DEFAULT now()
             )
         """))

@@ -83,7 +83,7 @@ jobs:
 
   postgres-integration:
     name: Disposable PostgreSQL integration tests
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_postgres_tests }}
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_postgres_tests) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261022_0008"
+HEAD = "20261119_0009"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -46,6 +46,8 @@ REQUIRED_TABLES = {
     "household_recipe_completions",
     "household_activity_events",
     "batch_idempotency_records",
+    "household_meal_plan_slots",
+    "household_meal_plan_imports",
 }
 
 
@@ -169,6 +171,16 @@ def test_clean_database_upgrades_to_current_schema(database_url):
             }
             assert "low_stock_notified_at" in inventory_columns
             assert "image_ref" in inventory_columns
+            for table in ("household_meal_plan_slots", "household_meal_plan_imports"):
+                assert connection.execute(text(
+                    "SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:name)"
+                ), {"name": "public." + table}).scalar_one() is True
+                for role in ("anon", "authenticated"):
+                    granted = connection.execute(text(
+                        "SELECT has_table_privilege(:role, :table, 'SELECT') "
+                        "FROM pg_roles WHERE rolname=:role"
+                    ), {"role": role, "table": "public." + table}).scalar_one_or_none()
+                    assert granted is None or granted is False
     finally:
         engine.dispose()
 
@@ -200,29 +212,24 @@ def test_followup_migration_can_downgrade_and_reapply(database_url):
 def test_existing_current_schema_can_be_checked_stamped_and_upgraded(database_url):
     engine = create_engine(database_url)
     try:
-        # The legacy SQL files own their own BEGIN/COMMIT blocks, so execute
-        # them through a DBAPI cursor rather than nesting them inside
-        # SQLAlchemy's transaction context.
-        raw = engine.raw_connection()
-        try:
-            raw.autocommit = True
-            with raw.cursor() as cursor:
-                cursor.execute(
-                    (
-                        ROOT
-                        / "alembic"
-                        / "sql"
-                        / "20261002_0001_current_household_baseline.sql"
-                    ).read_text()
-                )
-                cursor.execute(
-                    "INSERT INTO households(id,name,created_by,invite_code) "
-                    "VALUES ('00000000-0000-0000-0000-000000000001', "
-                    "'Existing household', "
-                    "'10000000-0000-0000-0000-000000000001', 'BASE01')"
-                )
-        finally:
-            raw.close()
+        # This frozen baseline file does not contain BEGIN/COMMIT.
+        # Explicitly commit schema setup before the independent baseline
+        # checker opens its own database connection.
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                (
+                    ROOT
+                    / "alembic"
+                    / "sql"
+                    / "20261002_0001_current_household_baseline.sql"
+                ).read_text()
+            )
+            connection.exec_driver_sql(
+                "INSERT INTO households(id,name,created_by,invite_code) "
+                "VALUES ('00000000-0000-0000-0000-000000000001', "
+                "'Existing household', "
+                "'10000000-0000-0000-0000-000000000001', 'BASE01')"
+            )
     finally:
         engine.dispose()
 
