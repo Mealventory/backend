@@ -83,6 +83,7 @@ class ItemUpdate(BaseModel):
 class ItemOut(BaseModel):
     id: UUID
     household_id: UUID
+    version: int = Field(ge=1)
     name: str
     category: str | None
     quantity: Decimal
