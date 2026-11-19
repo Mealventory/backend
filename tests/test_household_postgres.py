@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 from app.services import household_service as service
@@ -45,6 +46,18 @@ def postgres_engine():
         url = URL.create('postgresql+psycopg2',username='postgres',password=password,
                          host='127.0.0.1',port=port,database='postgres')
         engine=create_engine(url)
+        # pg_isready inside the container can report ready before the
+        # published loopback port accepts SQLAlchemy connections.
+        for _ in range(60):
+            try:
+                with engine.connect() as connection:
+                    connection.execute(text('SELECT 1'))
+                break
+            except OperationalError:
+                engine.dispose()
+                time.sleep(0.5)
+        else:
+            pytest.fail('PostgreSQL did not accept host TCP connections')
         env=os.environ.copy()
         env.pop('DATABASE_URL', None)
         env['ALEMBIC_DATABASE_URL']=url.render_as_string(hide_password=False)
