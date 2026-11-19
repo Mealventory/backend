@@ -212,29 +212,24 @@ def test_followup_migration_can_downgrade_and_reapply(database_url):
 def test_existing_current_schema_can_be_checked_stamped_and_upgraded(database_url):
     engine = create_engine(database_url)
     try:
-        # The legacy SQL files own their own BEGIN/COMMIT blocks, so execute
-        # them through a DBAPI cursor rather than nesting them inside
-        # SQLAlchemy's transaction context.
-        raw = engine.raw_connection()
-        try:
-            raw.autocommit = True
-            with raw.cursor() as cursor:
-                cursor.execute(
-                    (
-                        ROOT
-                        / "alembic"
-                        / "sql"
-                        / "20261002_0001_current_household_baseline.sql"
-                    ).read_text()
-                )
-                cursor.execute(
-                    "INSERT INTO households(id,name,created_by,invite_code) "
-                    "VALUES ('00000000-0000-0000-0000-000000000001', "
-                    "'Existing household', "
-                    "'10000000-0000-0000-0000-000000000001', 'BASE01')"
-                )
-        finally:
-            raw.close()
+        # This frozen baseline file does not contain BEGIN/COMMIT.
+        # Explicitly commit schema setup before the independent baseline
+        # checker opens its own database connection.
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                (
+                    ROOT
+                    / "alembic"
+                    / "sql"
+                    / "20261002_0001_current_household_baseline.sql"
+                ).read_text()
+            )
+            connection.exec_driver_sql(
+                "INSERT INTO households(id,name,created_by,invite_code) "
+                "VALUES ('00000000-0000-0000-0000-000000000001', "
+                "'Existing household', "
+                "'10000000-0000-0000-0000-000000000001', 'BASE01')"
+            )
     finally:
         engine.dispose()
 
