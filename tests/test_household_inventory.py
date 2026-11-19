@@ -83,6 +83,16 @@ def inventory_api():
             created_at timestamp DEFAULT CURRENT_TIMESTAMP
         )'''))
 
+        c.execute(text('''CREATE TABLE pantry_import_idempotency_records (
+            household_id text NOT NULL,
+            user_id text NOT NULL,
+            idempotency_key text NOT NULL,
+            request_hash text NOT NULL,
+            response_json text NOT NULL,
+            created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (household_id, user_id, idempotency_key)
+        )'''))
+
     with Session(engine) as db:
         db.add_all([
             HouseholdMember(

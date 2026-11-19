@@ -229,3 +229,34 @@ def test_edit_merge_changes_target_version_and_deletes_source(postgres_engine):
                 expected_version=target['version'],
             )
         assert stale_target.value.status_code == 409
+
+
+def test_failed_pantry_confirmation_rolls_back_items_and_key(postgres_engine):
+    from sqlalchemy import text
+    from app.core.auth_errors import AuthProblem
+    from app.schemas.user import UserOut
+    from app.services import pantry_csv_service
+
+    with Session(postgres_engine) as db:
+        home = household_service.create_household(db, A, 'CSV rollback')
+        existing = inventory.add_item(db, home.id, ItemCreate(name='Milk'))
+        actor = UserOut(id=A, email='owner@example.com')
+        raw = ("schema_version,food_name,category,quantity,unit,storage_zone,expiry_date\n"
+               "1,Rice,Pantry,1,kg,pantry,\n"
+               "1,Milk,Pantry,2,units,pantry,\n").encode()
+        preview = pantry_csv_service.preview_csv(db, home.id, A, raw)
+        inventory.delete_item(db, home.id, existing['id'])
+        try:
+            pantry_csv_service.confirm_import(
+                db, home.id, actor, preview['operation_id'], 'csv-rollback-key-12345',
+                [{'row': 2, 'action': 'add'}, {'row': 3, 'action': 'merge'}],
+            )
+            assert False, 'Expected stale duplicate merge to fail'
+        except AuthProblem as error:
+            assert error.status_code == 409
+    with Session(postgres_engine) as db:
+        assert db.execute(text("SELECT count(*) FROM inventory_items i JOIN foods f ON f.id=i.food_id "
+                               "WHERE i.household_id=:h AND f.name='Rice'"),
+                          {'h': str(home.id)}).scalar_one() == 0
+        assert db.execute(text("SELECT count(*) FROM pantry_import_idempotency_records "
+                               "WHERE household_id=:h"), {'h': str(home.id)}).scalar_one() == 0

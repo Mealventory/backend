@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str | None = None
     SUPABASE_JWT_SECRET: SecretStr | None = None
     SUPABASE_JWT_ALGORITHM: Literal["HS256", "ES256", "RS256"] = "HS256"
+    PANTRY_IMPORT_SIGNING_SECRET: SecretStr | None = None
 
     # Protected cron/job trigger for expiry notification delivery.
     NOTIFICATION_JOB_SECRET: SecretStr | None = None
