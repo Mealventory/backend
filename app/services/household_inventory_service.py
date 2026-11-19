@@ -79,7 +79,7 @@ def get_item(db, household_id, item_id):
     return _decorate_item(row)
 
 
-def add_item(db, household_id, item, *, commit=True, actor=None):
+def add_item(db, household_id, item, *, commit=True, actor=None, stack_existing=True):
     try:
         _check_location(db, household_id, item.storage_location_id)
         _check_image_ref_household(household_id, item.image_ref)
@@ -116,7 +116,7 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
             'unit': item.unit,
             **expiry_param,
         }
-        existing = db.execute(text(find_query), params).mappings().first()
+        existing = db.execute(text(find_query), params).mappings().first() if stack_existing else None
         if existing:
             existing_id = str(existing['id'])
             inc_qty = Decimal(str(item.quantity))
