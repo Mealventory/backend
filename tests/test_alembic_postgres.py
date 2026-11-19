@@ -30,7 +30,7 @@ pytestmark = pytest.mark.skipif(
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "20261002_0001"
-HEAD = "20261119_0009"
+HEAD = "20261119_0010"
 REQUIRED_TABLES = {
     "households",
     "household_members",
@@ -171,6 +171,7 @@ def test_clean_database_upgrades_to_current_schema(database_url):
             }
             assert "low_stock_notified_at" in inventory_columns
             assert "image_ref" in inventory_columns
+            assert "version" in inventory_columns
             for table in ("household_meal_plan_slots", "household_meal_plan_imports"):
                 assert connection.execute(text(
                     "SELECT relrowsecurity FROM pg_class WHERE oid=to_regclass(:name)"
