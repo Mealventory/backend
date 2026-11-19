@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 import pytest
 from sqlalchemy import text
-from tests.test_household_inventory import inventory_api, HOME, OTHER, OWNER, MEMBER
+from tests.test_household_inventory import inventory_api, patch_item, HOME, OTHER, OWNER, MEMBER
 from app.services import household_expiry_service as service
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def test_prediction_preserves_date_until_explicit_save(inventory_api,predictor):
     assert predictor.post.call_args.args[0].endswith('/scan/predict-expiry')
     assert client.get('/api/v1/items',headers=headers).json()[0]['expiry_date']=='2030-01-01'
     prediction=result.json()['predicted_expiry_date']
-    assert client.patch('/api/v1/items/'+saved['id'],headers=headers,json={'expiry_date':prediction}).status_code==200
+    assert patch_item(client, '/api/v1/items/'+saved['id'],headers=headers,json={'expiry_date':prediction}).status_code==200
     assert client.get('/api/v1/items',headers=headers).json()[0]['expiry_date']==prediction
 
 def test_unauthorized_household_never_calls_model(inventory_api,predictor):

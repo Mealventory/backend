@@ -40,8 +40,9 @@ router = APIRouter(
         ),
         404: problem_response("Item or location not in household"),
         409: problem_response(
-            "Item is no longer active or has a conflicting final status"
+            "Item changed since read, has merged, or is no longer active"
         ),
+        428: problem_response("If-Match inventory version required for PATCH"),
     }
 )
 
@@ -91,9 +92,17 @@ def update_item(
     household_id: UUID = Depends(get_current_household),
     current_user: UserOut = Depends(get_current_user),
     db: Session = Depends(get_db),
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ):
-    """Edit active items atomically, including labels, zone and status. Null clears expiry or location."""
-    return service.update_item(db, household_id, item_id, patch, actor=current_user)
+    """Require the version from the last item read to prevent stale writes."""
+    if if_match is None:
+        raise AuthProblem(428, "Send the item's current version in the If-Match header")
+    if not re.fullmatch(r"[1-9][0-9]{0,9}", if_match):
+        raise AuthProblem(400, "If-Match must contain a positive integer inventory version")
+    return service.update_item(
+        db, household_id, item_id, patch,
+        actor=current_user, expected_version=int(if_match),
+    )
 
 
 @router.post("/{item_id}/consume", response_model=ItemOut)

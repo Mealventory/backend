@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 ITEM_SELECT = '''SELECT i.id, i.household_id, f.name, f.category,
-    i.quantity, i.initial_quantity, i.unit, i.expiry_date, i.status, i.storage_location_id, i.image_ref,
+    i.quantity, i.initial_quantity, i.version, i.unit, i.expiry_date, i.status, i.storage_location_id, i.image_ref,
     (SELECT s.zone FROM storage_locations s WHERE s.id = i.storage_location_id
         AND s.household_id = i.household_id) AS storage_zone
     FROM inventory_items i JOIN foods f ON f.id = i.food_id
@@ -131,7 +131,8 @@ def add_item(db, household_id, item, *, commit=True, actor=None):
                 UPDATE inventory_items
                 SET quantity = :quantity,
                     initial_quantity = :initial_quantity,
-                    image_ref = :image_ref
+                    image_ref = :image_ref,
+                    version = version + 1
                 WHERE id = :id AND household_id = :household_id
             '''), {
                 'id': existing_id,
@@ -211,17 +212,19 @@ def _zone_location(db, household_id, zone):
     return str(row['id'])
 
 
-def update_item(db, household_id, item_id, patch, actor=None):
+def update_item(db, household_id, item_id, patch, actor=None, *, expected_version=None):
     try:
         values = patch.model_dump(exclude_unset=True)
         params = dict(id=str(item_id), household_id=str(household_id))
         # Serialize all edits against status transitions before copying catalogue data.
         lock = ' FOR UPDATE' if db.get_bind().dialect.name == 'postgresql' else ''
-        current = db.execute(text('''SELECT food_id, status, storage_location_id
+        current = db.execute(text('''SELECT food_id, status, storage_location_id, version
             FROM inventory_items WHERE id=:id AND household_id=:household_id''' + lock),
             params).mappings().first()
         if current is None:
             raise AuthProblem(404, 'Item not found in this household')
+        if expected_version is not None and current['version'] != expected_version:
+            raise AuthProblem(409, 'Inventory item changed since you opened it. Refresh and review your edits.')
         if current['status'] != 'active':
             if values == {'status': current['status']}:
                 row = get_item(db, household_id, item_id)
@@ -250,7 +253,7 @@ def update_item(db, household_id, item_id, patch, actor=None):
                 values[key] = str(values[key])
         if values:
             # Keys come exclusively from ItemUpdate and the internal food replacement.
-            assignments = ', '.join(f'{key} = :{key}' for key in values)
+            assignments = ', '.join(f'{key} = :{key}' for key in values) + ', version = version + 1'
             db.execute(text(f'UPDATE inventory_items SET {assignments} WHERE id=:id AND household_id=:household_id'),
                        dict(values, **params))
         row = get_item(db, household_id, item_id)
@@ -306,7 +309,8 @@ def update_item(db, household_id, item_id, patch, actor=None):
                 UPDATE inventory_items
                 SET quantity = :quantity,
                     initial_quantity = :initial_quantity,
-                    image_ref = :image_ref
+                    image_ref = :image_ref,
+                    version = version + 1
                 WHERE id = :id AND household_id = :household_id
             '''), {
                 'id': target_id,
@@ -355,7 +359,8 @@ def transition_item(db, household_id, item_id, target, actor=None, reason=None):
 
     try:
         # Conditional update serializes competing transitions without overwriting history.
-        result = db.execute(text('''UPDATE inventory_items SET status = :target
+        result = db.execute(text('''UPDATE inventory_items
+            SET status = :target, version = version + 1
             WHERE id = :id AND household_id = :household_id AND status = 'active' '''),
             dict(target=target, id=str(item_id), household_id=str(household_id)))
 
