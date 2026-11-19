@@ -48,9 +48,9 @@ def complete_recipe(db, household_id, request):
             remaining = available - item.quantity
             # Preserve the consumed amount on terminal rows for existing history/analytics.
             if remaining == 0:
-                db.execute(text("UPDATE inventory_items SET status='consumed' WHERE household_id=:household_id AND id=:id"), item_params)
+                db.execute(text("UPDATE inventory_items SET status='consumed', version=version+1 WHERE household_id=:household_id AND id=:id"), item_params)
             else:
-                db.execute(text('UPDATE inventory_items SET quantity=:quantity WHERE household_id=:household_id AND id=:id'),
+                db.execute(text('UPDATE inventory_items SET quantity=:quantity, version=version+1 WHERE household_id=:household_id AND id=:id'),
                            dict(item_params, quantity=str(remaining)))
             result['items'].append({'item_id': str(item.item_id), 'name': row['name'], 'used': str(item.quantity),
                                     'remaining': str(remaining), 'unit': item.unit,
