@@ -2,7 +2,7 @@ import re
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, Query, Response
+from fastapi import APIRouter, Body, Depends, File, Header, Query, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -17,10 +17,12 @@ from app.schemas.household_inventory import (
     ItemStatus,
     StorageZone,
 )
+from app.schemas.pantry_csv import PantryImportConfirm
 from app.schemas.user import UserOut
 from app.services import household_inventory_service as service
 from app.services.batch_idempotency_service import save_reviewed_batch_once
 from app.services.household_expiry_service import predict_expiry
+from app.services import pantry_csv_service
 
 
 class DiscardReasonRequest(BaseModel):
@@ -42,6 +44,7 @@ router = APIRouter(
         409: problem_response(
             "Item changed since read, has merged, or is no longer active"
         ),
+        413: problem_response("CSV import exceeds the supported file or row limit"),
         428: problem_response("If-Match inventory version required for PATCH"),
     }
 )
@@ -59,6 +62,49 @@ def list_items(
     """List active items for the selected household, for any household member."""
     return service.list_items(
         db, household_id, status, zone, expiring_days, search
+    )
+
+
+@router.get("/export.csv")
+def export_pantry_csv(
+    household_id: UUID = Depends(get_current_household),
+    db: Session = Depends(get_db),
+):
+    """Download the documented, active pantry CSV for the selected household."""
+    return Response(
+        content=pantry_csv_service.export_csv(db, household_id),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="mealventory-pantry-v1.csv"'},
+    )
+
+
+@router.post("/import/preview")
+async def preview_pantry_import(
+    file: UploadFile = File(...),
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Validate a small CSV and return a signed review plan without database writes."""
+    raw = await file.read(pantry_csv_service.MAX_FILE_BYTES + 1)
+    await file.close()
+    return pantry_csv_service.preview_csv(db, household_id, current_user.id, raw)
+
+
+@router.post("/import/confirm")
+def confirm_pantry_import(
+    payload: PantryImportConfirm,
+    household_id: UUID = Depends(get_current_household),
+    current_user: UserOut = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    """Apply reviewed row choices once, scoped to the selected household."""
+    if idempotency_key is None or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{15,127}", idempotency_key):
+        raise AuthProblem(400, "Idempotency-Key must contain 16 to 128 ASCII letters, numbers, _ or -")
+    return pantry_csv_service.confirm_import(
+        db, household_id, current_user, payload.operation_id,
+        idempotency_key, [choice.model_dump() for choice in payload.choices],
     )
 
 

@@ -14,6 +14,7 @@ from app.core.auth_errors import AuthProblem
 from app.models.household import Household
 from app.models.household_member import HouseholdMember
 from app.schemas.household import HouseholdOut
+from app.services import shopping_service
 
 INVITE_CODE_ATTEMPTS = 5
 
@@ -299,6 +300,7 @@ def remove_member(
         ):
             raise AuthProblem(403, "You cannot remove this member")
         _protect_last_owner(db, household_id, target)
+        shopping_service.clear_member_claims(db, household_id, target_id)
         db.delete(target)
         db.commit()
     except Exception:
