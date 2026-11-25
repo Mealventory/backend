@@ -1,18 +1,19 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth_errors import problem_response
 from app.core.dependencies import get_current_household
 from app.dependencies.database import get_db
+from app.schemas.promotions import StorePromotionsResponse
 from app.schemas.stores import (
     HouseholdStoreCreate,
     HouseholdStoreOut,
     HouseholdStoreReorder,
     HouseholdStoreUpdate,
 )
-from app.services import store_service as service
+from app.services import promotions_service, store_service as service
 
 router = APIRouter(
     responses={
@@ -45,6 +46,21 @@ def reorder_stores(
     db: Session = Depends(get_db),
 ):
     return service.reorder_stores(db, household_id, order.store_ids)
+
+
+@router.get("/promotions", response_model=StorePromotionsResponse)
+def list_store_promotions(
+    store_id: UUID | None = Query(default=None),
+    only_matched: bool = Query(default=False),
+    household_id: UUID = Depends(get_current_household),
+    db: Session = Depends(get_db),
+):
+    return promotions_service.get_household_promotions(
+        db,
+        household_id,
+        store_id=store_id,
+        only_matched=only_matched,
+    )
 
 
 @router.patch("/{store_id}", response_model=HouseholdStoreOut)
