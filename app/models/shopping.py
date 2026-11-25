@@ -13,5 +13,8 @@ class ShoppingListItem(Base):
     quantity = Column(Numeric(12, 3), nullable=False, server_default='1')
     unit = Column(Text, nullable=False, server_default='units')
     checked = Column('is_checked', Boolean, nullable=False, server_default=false())
+    claimed_by = Column(Uuid(as_uuid=False), nullable=True)
+    claimed_at = Column(DateTime(timezone=True), nullable=True)
+    claim_expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

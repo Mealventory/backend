@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
@@ -27,6 +28,26 @@ class ShoppingItemUpdate(BaseModel):
         return self
 
 
+class ShoppingClaimRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    ttl_minutes: int | None = Field(default=120, ge=1, le=480)
+
+
+class ShoppingHandoffRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    target_user_id: UUID
+    ttl_minutes: int | None = Field(default=120, ge=1, le=480)
+
+
+class EndShoppingTripRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    scope: Literal['mine', 'all'] = 'mine'
+
+
+class EndShoppingTripOut(BaseModel):
+    released_count: int
+
+
 class ShoppingItemOut(BaseModel):
     id: UUID
     household_id: UUID
@@ -35,6 +56,9 @@ class ShoppingItemOut(BaseModel):
     quantity: Decimal
     unit: str
     checked: bool
+    claimed_by: UUID | None = None
+    claimed_at: datetime | None = None
+    claim_expires_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
